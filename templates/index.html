@@ -1,0 +1,1780 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>KOKORO // Multi-Node Server Ops</title>
+
+  <!-- Typography: Editorial Serif + Technical Monospace -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=JetBrains+Mono:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS v3 CDN + FontAwesome 6 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- xterm.js CDN for Web Terminal -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+
+  <!-- Tailwind Configuration matching Monad Design System -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            parchment: '#f6f3f1',
+            lake: '#2b59d1',
+            periwinkle: '#cfdaf5',
+            sky: '#a0b5eb',
+            mint: '#a7fccd',
+            coral: '#ff9473',
+            gold: '#ecda98',
+            offblack: '#242424',
+            graphite: '#4e4d4d',
+            smoke: '#797776',
+            // Clean Dark mode palette
+            darkCanvas: '#121214',
+            darkCard: '#1a1a1d',
+            darkPeriwinkle: '#1b2238'
+          },
+          fontFamily: {
+            serif: ['"Cormorant Garamond"', 'Georgia', 'serif'],
+            mono: ['"JetBrains Mono"', '"Space Mono"', 'monospace'],
+            sans: ['"Plus Jakarta Sans"', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    :root {
+      --canvas: #f6f3f1;
+      --card-bg: rgba(255, 255, 255, 0.75);
+      --text-main: #242424;
+      --text-muted: #5a5857;
+      --text-dim: #8a8886;
+      --lake-blue: #2b59d1;
+      --border-subtle: rgba(0, 0, 0, 0.06);
+    }
+
+    .dark {
+      --canvas: #121214;
+      --card-bg: rgba(26, 26, 29, 0.85);
+      --text-main: #f6f3f1;
+      --text-muted: #a6a5a4;
+      --text-dim: #706f6e;
+      --lake-blue: #3d6fe8;
+      --border-subtle: rgba(255, 255, 255, 0.07);
+    }
+
+    body {
+      background-color: var(--canvas);
+      color: var(--text-main);
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: -0.02em;
+      transition: background-color 0.25s ease, color 0.25s ease;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Headings stay strictly weight 400 (never bold) per Monad guide */
+    h1, h2, h3, .font-editorial {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-weight: 400 !important;
+      letter-spacing: -0.02em;
+    }
+
+    /* Clean card surfaces without harsh borders */
+    .clean-card {
+      background-color: var(--card-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 28px;
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03);
+      transition: all 0.25s ease;
+    }
+
+    .clean-card:hover {
+      box-shadow: 0 8px 30px -4px rgba(0, 0, 0, 0.06);
+    }
+
+    .dark .clean-card {
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.25);
+    }
+
+    /* 100px pill buttons */
+    .pill-btn-lake {
+      background-color: var(--lake-blue);
+      color: #ffffff;
+      border-radius: 9999px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: -0.01em;
+      padding: 9px 20px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .pill-btn-lake:hover {
+      opacity: 0.92;
+      transform: translateY(-1px);
+    }
+
+    .pill-btn-ghost {
+      background: rgba(0, 0, 0, 0.03);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      border-radius: 9999px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: -0.01em;
+      padding: 8px 18px;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dark .pill-btn-ghost {
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .pill-btn-ghost:hover {
+      background: rgba(0, 0, 0, 0.06);
+      transform: translateY(-1px);
+    }
+    .dark .pill-btn-ghost:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .pill-tag {
+      border-radius: 9999px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: -0.01em;
+      padding: 3px 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    /* Floating Anime Cloud Keyframe Animations */
+    @keyframes cloudDriftSlow {
+      0% { transform: translateX(-20%) translateY(0px); }
+      50% { transform: translateX(10%) translateY(-8px); }
+      100% { transform: translateX(-20%) translateY(0px); }
+    }
+    @keyframes chibiFloat {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-6px) rotate(1deg); }
+    }
+
+    .cloud-drift-1 {
+      animation: cloudDriftSlow 50s ease-in-out infinite;
+    }
+    .chibi-floating {
+      animation: chibiFloat 4s ease-in-out infinite;
+    }
+
+    /* Hide scrollbar on tab bar */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Terminal scrollbar */
+    .xterm-viewport::-webkit-scrollbar {
+      width: 5px;
+    }
+    .xterm-viewport::-webkit-scrollbar-thumb {
+      background: #4e4d4d;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="min-h-screen relative overflow-x-hidden selection:bg-periwinkle selection:text-offblack">
+
+  <!-- PANORAMIC CLOUDY SKY BACKDROP -->
+  <div class="fixed top-0 left-0 w-full h-[520px] pointer-events-none z-0 overflow-hidden opacity-30 dark:opacity-20 transition-opacity duration-500">
+    <img src="/static/img/cloudy_sky.jpg" alt="Cloudy Sky" class="w-full h-full object-cover object-top filter contrast-[1.03] brightness-[1.02]">
+    <div class="absolute inset-0 bg-gradient-to-b from-transparent via-parchment/65 dark:via-darkCanvas/75 to-parchment dark:to-darkCanvas"></div>
+  </div>
+
+  <!-- ATMOSPHERIC DRIFTING CLOUDS (Pure CSS) -->
+  <div class="fixed top-8 left-0 w-full pointer-events-none z-0 overflow-hidden opacity-25 dark:opacity-10">
+    <div class="cloud-drift-1 flex gap-24 w-[160vw]">
+      <svg class="w-72 h-28 text-sky/40 dark:text-sky/20 fill-current" viewBox="0 0 100 45">
+        <path d="M20,35 a15,15 0 0,1 -5,-28 a18,18 0 0,1 32,-4 a16,16 0 0,1 28,6 a14,14 0 0,1 12,26 z"/>
+      </svg>
+      <svg class="w-80 h-32 text-periwinkle/40 dark:text-lake/15 fill-current" viewBox="0 0 100 45">
+        <path d="M18,35 a14,14 0 0,1 -4,-26 a20,20 0 0,1 34,-5 a17,17 0 0,1 30,7 a13,13 0 0,1 11,24 z"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- TOP MINIMAL ANNOUNCEMENT STRIP -->
+  <div class="w-full bg-offblack text-parchment text-[11px] sm:text-[12px] py-2 px-3 sm:px-8 flex items-center justify-between z-50 relative">
+    <div class="flex items-center gap-2 truncate">
+      <span class="inline-block w-2 h-2 rounded-full bg-mint animate-pulse flex-shrink-0"></span>
+      <span class="tracking-wider uppercase font-mono truncate">KOKORO FLEET COMMAND</span>
+      <span class="hidden sm:inline text-smoke">·</span>
+      <span class="hidden sm:inline text-sky">ATMOSPHERE: OPTIMAL</span>
+    </div>
+    <div class="flex items-center gap-3 flex-shrink-0">
+      <span id="headerClock" class="font-mono text-smoke text-[11px] hidden xs:inline">19:55:00</span>
+      <button onclick="toggleDarkMode()" class="text-parchment hover:text-white transition px-2.5 py-0.5 rounded-full bg-white/10 hover:bg-white/15 text-[11px] flex items-center gap-1.5" title="Toggle Theme">
+        <span id="themeModeIcon">🌙 DARK</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- NAVIGATION BAR (Calm & Clean) -->
+  <header class="w-full max-w-[1400px] mx-auto px-4 sm:px-8 py-4 sm:py-6 flex items-center justify-between relative z-10">
+    <div class="flex items-center gap-2.5 sm:gap-3 cursor-pointer" onclick="returnToSelector()">
+      <!-- Modern Cloud Logo Mark -->
+      <div class="w-10 h-10 rounded-2xl bg-white dark:bg-darkCard shadow-sm flex items-center justify-center text-lake text-base border border-black/[0.04] dark:border-white/[0.06]">
+        <i class="fa-solid fa-cloud"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="font-editorial text-2xl sm:text-3xl tracking-tight text-offblack dark:text-parchment font-normal">KOKORO</span>
+          <span class="pill-tag bg-sky/20 dark:bg-darkPeriwinkle text-lake dark:text-sky text-[10px]">v1.3 ISOLATED</span>
+        </div>
+        <div class="text-[10px] text-smoke uppercase tracking-wider font-mono hidden sm:block">Dedicated Multi-Server Management</div>
+      </div>
+    </div>
+
+    <!-- Right Actions -->
+    <div class="flex items-center gap-2 sm:gap-3">
+      <!-- Back to selector button (visible only in dashboard view) -->
+      <button id="navBackBtn" onclick="returnToSelector()" class="pill-btn-ghost text-xs hidden">
+        <i class="fa-solid fa-arrow-left text-[10px]"></i>
+        <span>Ganti Server</span>
+      </button>
+
+      <button onclick="openAddNodeModal()" class="pill-btn-lake text-xs">
+        <i class="fa-solid fa-plus text-[10px]"></i>
+        <span>Link Node ▸</span>
+      </button>
+
+      <button onclick="openSettingsModal()" class="w-9 h-9 sm:w-10 sm:h-10 rounded-full clean-card flex items-center justify-center text-smoke hover:text-offblack dark:hover:text-white transition" title="Settings">
+        <i class="fa-solid fa-sliders text-xs"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- ========================================================================= -->
+  <!-- VIEW 1: SERVER SELECTION PORTAL (FIRST LANDING SCREEN) -->
+  <!-- ========================================================================= -->
+  <main id="viewServerSelection" class="w-full max-w-[1400px] mx-auto px-4 sm:px-8 pb-24 relative z-10 space-y-8 sm:space-y-10">
+    
+    <!-- Hero Header with Operator Card -->
+    <section class="pt-2 pb-2 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-center">
+      
+      <!-- Headline & Introduction -->
+      <div class="lg:col-span-7 space-y-3 sm:space-y-4">
+        <div class="inline-flex items-center gap-2 flex-wrap">
+          <div class="pill-tag bg-white/70 dark:bg-darkCard text-graphite dark:text-smoke border border-black/[0.04] dark:border-white/[0.06]">
+            <i class="fa-solid fa-cloud text-sky"></i>
+            <span>SERVER PORTAL // FLEET DIRECTORY</span>
+          </div>
+          <span class="pill-tag bg-mint/20 text-offblack dark:text-mint text-[10px]" id="portalFleetBadge">
+            2 NODES READY
+          </span>
+        </div>
+        
+        <h1 class="text-3xl sm:text-5xl lg:text-6xl font-editorial text-offblack dark:text-parchment leading-[1.1]">
+          Pilih Server Armada.
+        </h1>
+
+        <p class="text-xs sm:text-sm text-graphite dark:text-smoke max-w-xl leading-relaxed">
+          Silakan pilih server yang ingin Anda atur dan monitor. Setiap server memiliki dashboard dan terminal terisolasi penuh sehingga data, proses, dan metrik tidak saling bercampur.
+        </p>
+
+        <!-- Fleet Quick Highlights -->
+        <div class="flex items-center gap-4 text-xs font-mono text-smoke pt-1">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-mint"></span>
+            <span id="portalOnlineCount">2 Server Online</span>
+          </div>
+          <span>·</span>
+          <div class="flex items-center gap-1.5">
+            <i class="fa-solid fa-shield-halved text-lake"></i>
+            <span>Outbound WSS Encrypted</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Operator Greeting Card -->
+      <div class="lg:col-span-5">
+        <div class="clean-card p-5 sm:p-6 relative overflow-hidden">
+          
+          <div class="flex items-center gap-3.5 sm:gap-4">
+            <div class="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border border-lake/20 flex-shrink-0 shadow-sm group">
+              <img id="portalOperatorImg" src="/static/img/operator_day.jpg?v=elaina_v1" alt="Operator Elaina" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105">
+              <div class="absolute bottom-1 right-1 w-3 h-3 rounded-full bg-mint border-2 border-white dark:border-darkCard"></div>
+            </div>
+
+            <div class="space-y-0.5">
+              <div class="flex items-center gap-1.5">
+                <span class="pill-tag text-[9px] bg-lake/10 text-lake dark:text-sky">DISPATCHER</span>
+                <span class="text-[10px] font-mono text-smoke" id="portalOperatorCode">OP-01 // ELAINA</span>
+              </div>
+              <h3 class="text-xl sm:text-2xl font-editorial text-offblack dark:text-parchment" id="portalOperatorName">Operator Elaina</h3>
+              <p class="text-[11px] text-smoke font-mono">The Ashen Witch · Fleet Overseer</p>
+              <div class="pt-0.5 flex items-center gap-1.5">
+                <span class="inline-block w-1.5 h-1.5 rounded-full bg-mint animate-pulse"></span>
+                <span class="text-[10px] font-mono text-mint tracking-wider">AWAITING SELECTION</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Speech Bubble -->
+          <div class="mt-3.5 p-3.5 sm:p-4 rounded-2xl bg-periwinkle/25 dark:bg-darkPeriwinkle/40 relative">
+            <p id="portalOperatorDialogue" class="text-xs font-mono text-offblack dark:text-parchment leading-relaxed">
+              "Selamat datang kembali, Senpai! Silakan pilih salah satu server di bawah untuk membuka dashboard khususnya. Data tiap server terpisah dengan aman!"
+            </p>
+          </div>
+
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Available Servers Grid -->
+    <section class="space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-lake"></span>
+          <h2 class="text-2xl font-editorial text-offblack dark:text-parchment">Daftar Server Tersedia</h2>
+        </div>
+        <button onclick="fetchNodes()" class="pill-btn-ghost text-xs py-1 px-3">
+          <i class="fa-solid fa-arrows-rotate text-[10px]"></i>
+          <span>Refresh</span>
+        </button>
+      </div>
+
+      <!-- Server Cards Container -->
+      <div id="selectorServerCards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-5 sm:gap-6">
+        <!-- Rendered via JS -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========================================================================= -->
+  <!-- VIEW 2: DEDICATED SERVER DASHBOARD (ISOLATED TO SELECTED SERVER) -->
+  <!-- ========================================================================= -->
+  <main id="viewServerDashboard" class="w-full max-w-[1400px] mx-auto px-4 sm:px-8 pb-24 relative z-10 space-y-8 sm:space-y-10 hidden">
+    
+    <!-- Top Active Server Breadcrumb Bar -->
+    <section class="pt-1">
+      <div class="clean-card p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        
+        <div class="flex items-center gap-3 sm:gap-4">
+          <button onclick="returnToSelector()" class="w-10 h-10 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] flex items-center justify-center hover:bg-lake hover:text-white transition group" title="Kembali ke Pilihan Server">
+            <i class="fa-solid fa-arrow-left text-xs group-hover:-translate-x-0.5 transition-transform"></i>
+          </button>
+          
+          <div class="relative w-12 h-12 rounded-2xl overflow-hidden border border-black/[0.06] dark:border-white/[0.08] flex-shrink-0">
+            <img id="activeNodeOperatorAvatar" src="/static/img/operator_day.jpg?v=elaina_v1" alt="Operator Elaina" class="w-full h-full object-cover">
+          </div>
+
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="activeNodeStatusDot" class="w-2 h-2 rounded-full bg-mint"></span>
+              <span class="pill-tag text-[9px] bg-mint/20 text-offblack dark:text-mint" id="activeNodeStatusPill">ONLINE</span>
+              <span class="pill-tag text-[9px] bg-lake text-white" id="activeNodeRolePill">HOST</span>
+            </div>
+            <div class="flex items-center gap-2 mt-0.5">
+              <h2 class="text-xl sm:text-2xl font-editorial text-offblack dark:text-parchment" id="activeNodeTitle">NODE-01 // TOKYO-NAT</h2>
+              <button onclick="openRenameActiveNodeModal()" class="w-6 h-6 rounded-full bg-black/[0.04] dark:bg-white/[0.06] hover:bg-lake hover:text-white flex items-center justify-center transition text-smoke p-1" title="Edit Nama Server">
+                <i class="fa-solid fa-pen-to-square text-[10px]"></i>
+              </button>
+            </div>
+            <div class="text-[11px] font-mono text-smoke" id="activeNodeSubtitle">Ubuntu 22.04.5 LTS · Kernel 5.2.0</div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 self-end sm:self-center flex-wrap">
+          <button onclick="cleanRamCache()" class="pill-btn-ghost text-xs hover:border-mint hover:text-mint" title="Bersihkan cache RAM kernel (sync & drop_caches)">
+            <i class="fa-solid fa-broom text-[10px] text-mint"></i>
+            <span>Clean RAM</span>
+          </button>
+          <button onclick="rebootServer()" class="pill-btn-ghost text-xs hover:border-coral hover:text-coral" title="Reboot Server">
+            <i class="fa-solid fa-power-off text-[10px] text-coral"></i>
+            <span>Reboot</span>
+          </button>
+          <button onclick="returnToSelector()" class="pill-btn-ghost text-xs">
+            <i class="fa-solid fa-server text-[10px] text-sky"></i>
+            <span>Ganti Server</span>
+          </button>
+          <button onclick="fetchCurrentNodeData()" class="pill-btn-ghost text-xs py-2 px-3" title="Refresh Server Data">
+            <i class="fa-solid fa-arrows-rotate text-[10px]"></i>
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Dedicated Server Telemetry HUD -->
+    <section class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="clean-card p-4">
+        <div class="text-[10px] uppercase text-smoke flex items-center gap-1.5"><i class="fa-solid fa-microchip text-[9px] text-lake"></i> CPU Load</div>
+        <div class="text-2xl sm:text-3xl font-editorial font-normal mt-0.5 text-offblack dark:text-parchment" id="dashValCpu">0.0%</div>
+        <div class="text-[10px] font-mono text-smoke mt-1" id="dashValLoadAvg">Load: 0.00, 0.00</div>
+      </div>
+      <div class="clean-card p-4">
+        <div class="text-[10px] uppercase text-smoke flex items-center gap-1.5"><i class="fa-solid fa-memory text-[9px] text-mint"></i> RAM Usage</div>
+        <div class="text-2xl sm:text-3xl font-editorial font-normal mt-0.5 text-offblack dark:text-parchment" id="dashValMem">0 / 0 MB</div>
+        <div class="text-[10px] font-mono text-smoke mt-1" id="dashValMemPct">0% Terpakai</div>
+      </div>
+      <div class="clean-card p-4">
+        <div class="text-[10px] uppercase text-smoke flex items-center gap-1.5"><i class="fa-solid fa-hard-drive text-[9px] text-sky"></i> Storage Disk</div>
+        <div class="text-2xl sm:text-3xl font-editorial font-normal mt-0.5 text-offblack dark:text-parchment" id="dashValDisk">0 / 0 GB</div>
+        <div class="text-[10px] font-mono text-smoke mt-1" id="dashValDiskPct">0% Terpakai</div>
+      </div>
+      <div class="clean-card p-4">
+        <div class="text-[10px] uppercase text-smoke flex items-center gap-1.5"><i class="fa-solid fa-clock text-[9px] text-coral"></i> Server Uptime</div>
+        <div class="text-2xl sm:text-3xl font-editorial font-normal mt-0.5 text-offblack dark:text-parchment" id="dashValUptime">0d 0h</div>
+        <div class="text-[10px] font-mono text-smoke mt-1" id="dashValNet">Drift: 0 KB/s</div>
+      </div>
+    </section>
+
+    <!-- Dedicated Operator Dialogue for Selected Server -->
+    <section>
+      <div class="clean-card p-4 sm:p-5 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-2xl overflow-hidden flex-shrink-0 border border-lake/20">
+          <img id="dashOperatorThumb" src="/static/img/operator_day.jpg?v=elaina_v1" alt="Operator Elaina" class="w-full h-full object-cover">
+        </div>
+        <div class="flex-1">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-mono font-medium text-lake dark:text-sky" id="dashOperatorNameLabel">Operator Elaina</span>
+            <span class="text-[10px] font-mono text-smoke">· Terhubung Langsung</span>
+          </div>
+          <p id="dashOperatorComment" class="text-xs font-mono text-offblack dark:text-parchment mt-0.5 leading-relaxed">
+            "Senpai sedang berada di server ini. Seluruh eksekusi terminal, proses, dan service terisolasi aman!"
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TABBED DECK: TERMINAL, SERVICES, PROCESSES, COMMANDS, FILES -->
+    <section class="space-y-5 pt-1">
+      
+      <!-- Tab Navigation Buttons -->
+      <div class="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+        <button id="tabBtn-terminal" onclick="switchTab('terminal')" class="pill-btn-lake text-xs flex-shrink-0">
+          <i class="fa-solid fa-terminal text-[11px]"></i>
+          <span>Terminal</span>
+        </button>
+        <button id="tabBtn-services" onclick="switchTab('services')" class="pill-btn-ghost text-xs flex-shrink-0">
+          <i class="fa-solid fa-gears text-[11px]"></i>
+          <span>Services</span>
+        </button>
+        <button id="tabBtn-processes" onclick="switchTab('processes')" class="pill-btn-ghost text-xs flex-shrink-0">
+          <i class="fa-solid fa-microchip text-[11px]"></i>
+          <span>Processes</span>
+        </button>
+        <button id="tabBtn-commands" onclick="switchTab('commands')" class="pill-btn-ghost text-xs flex-shrink-0">
+          <i class="fa-solid fa-bolt text-[11px]"></i>
+          <span>Exec Scripts</span>
+        </button>
+        <button id="tabBtn-files" onclick="switchTab('files')" class="pill-btn-ghost text-xs flex-shrink-0">
+          <i class="fa-solid fa-folder-tree text-[11px]"></i>
+          <span>File Browser</span>
+        </button>
+      </div>
+
+      <!-- TAB 1: WEB TERMINAL -->
+      <div id="tabContent-terminal" class="space-y-4">
+        <div class="clean-card p-4 sm:p-7 relative overflow-hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-black/[0.04] dark:border-white/[0.06]">
+            <div class="flex items-center gap-2.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-coral"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-gold"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-mint"></span>
+              <span class="text-xs uppercase text-smoke ml-2 font-mono truncate" id="termCurrentNodeLabel">SHELL: NODE-01</span>
+            </div>
+            
+            <div class="flex items-center gap-2">
+              <button onclick="initTerminal()" class="pill-btn-ghost text-xs py-1 px-3" title="Clear & Reconnect">
+                <i class="fa-solid fa-rotate-right text-[10px]"></i>
+                <span>Reconnect</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- xterm.js terminal mount point -->
+          <div class="w-full bg-[#121214] rounded-2xl p-2 sm:p-4 mt-3 min-h-[340px] sm:min-h-[460px] shadow-inner overflow-hidden" id="terminalMount"></div>
+        </div>
+      </div>
+
+      <!-- TAB 2: SYSTEMD SERVICES CONTROLLER -->
+      <div id="tabContent-services" class="hidden space-y-4">
+        <div class="clean-card p-4 sm:p-7 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 class="text-2xl font-editorial">Systemd Services</h3>
+              <p class="text-xs text-smoke font-mono">Daftar service dan daemon yang berjalan pada server ini.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <input type="text" id="serviceSearchInput" oninput="filterServices()" placeholder="Filter service (e.g. mt5, nginx)..." class="text-xs bg-white/70 dark:bg-darkCanvas border border-black/[0.06] dark:border-white/[0.08] rounded-full px-4 py-2 font-mono text-offblack dark:text-parchment w-full sm:w-64 focus:outline-none focus:border-lake">
+              <button onclick="loadServices()" class="pill-btn-ghost text-xs py-2 px-3 flex-shrink-0">
+                <i class="fa-solid fa-arrows-rotate"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Services Table -->
+          <div class="overflow-x-auto rounded-2xl -mx-4 sm:mx-0 px-4 sm:px-0">
+            <table class="w-full text-left text-xs font-mono whitespace-nowrap">
+              <thead class="bg-black/[0.03] dark:bg-white/[0.04] text-smoke uppercase">
+                <tr>
+                  <th class="py-3 px-4 rounded-l-xl">Service Name</th>
+                  <th class="py-3 px-4">Status</th>
+                  <th class="py-3 px-4">Sub State</th>
+                  <th class="py-3 px-4">Description</th>
+                  <th class="py-3 px-4 text-right rounded-r-xl">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="servicesTableBody">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: PROCESS MANAGER -->
+      <div id="tabContent-processes" class="hidden space-y-4">
+        <div class="clean-card p-4 sm:p-7 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 class="text-2xl font-editorial">Live Process Monitor</h3>
+              <p class="text-xs text-smoke font-mono">Proses aktif pada server ini dengan kemampuan 1-klik kill.</p>
+            </div>
+            <div class="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+              <button onclick="loadProcesses('cpu')" class="pill-btn-ghost text-xs py-1.5 px-3 flex-shrink-0">Sort CPU</button>
+              <button onclick="loadProcesses('memory')" class="pill-btn-ghost text-xs py-1.5 px-3 flex-shrink-0">Sort RAM</button>
+              <button onclick="loadProcesses()" class="pill-btn-ghost text-xs py-1.5 px-3 flex-shrink-0"><i class="fa-solid fa-arrows-rotate"></i></button>
+            </div>
+          </div>
+
+          <!-- Process Table -->
+          <div class="overflow-x-auto rounded-2xl -mx-4 sm:mx-0 px-4 sm:px-0">
+            <table class="w-full text-left text-xs font-mono whitespace-nowrap">
+              <thead class="bg-black/[0.03] dark:bg-white/[0.04] text-smoke uppercase">
+                <tr>
+                  <th class="py-3 px-4 rounded-l-xl">PID</th>
+                  <th class="py-3 px-4">Process Name</th>
+                  <th class="py-3 px-4">User</th>
+                  <th class="py-3 px-4">CPU %</th>
+                  <th class="py-3 px-4">RAM %</th>
+                  <th class="py-3 px-4">Command</th>
+                  <th class="py-3 px-4 text-right rounded-r-xl">Kill</th>
+                </tr>
+              </thead>
+              <tbody id="processesTableBody">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: QUICK EXEC & SCRIPTS -->
+      <div id="tabContent-commands" class="hidden space-y-4">
+        <div class="clean-card p-4 sm:p-7 space-y-5">
+          <div>
+            <h3 class="text-2xl font-editorial">Batch Commands & Recipes</h3>
+            <p class="text-xs text-smoke font-mono">Eksekusi perintah bash cepat khusus pada server ini.</p>
+          </div>
+
+          <!-- Recipe Buttons -->
+          <div class="flex flex-wrap gap-2">
+            <button onclick="runQuickScript('apt update && apt upgrade -y')" class="pill-btn-ghost text-xs">
+              <i class="fa-solid fa-sync text-lake"></i>
+              <span>System Update (apt upgrade)</span>
+            </button>
+            <button onclick="runQuickScript('journalctl --vacuum-time=2d && apt autoremove -y')" class="pill-btn-ghost text-xs">
+              <i class="fa-solid fa-broom text-coral"></i>
+              <span>Clean Journal Logs</span>
+            </button>
+            <button onclick="runQuickScript('free -h && df -h')" class="pill-btn-ghost text-xs">
+              <i class="fa-solid fa-chart-pie text-mint"></i>
+              <span>Inspect Memory & Disk</span>
+            </button>
+            <button onclick="runQuickScript('uptime && uname -a')" class="pill-btn-ghost text-xs">
+              <i class="fa-solid fa-info-circle text-sky"></i>
+              <span>OS Kernel & Uptime</span>
+            </button>
+          </div>
+
+          <!-- Custom Command Input -->
+          <div class="space-y-2 pt-2">
+            <label class="text-xs uppercase text-smoke font-mono">Custom Bash Command</label>
+            <div class="flex items-center gap-2">
+              <input type="text" id="customCmdInput" placeholder="e.g. systemctl restart mt5-trading" class="flex-1 text-xs bg-white/70 dark:bg-darkCanvas border border-black/[0.06] dark:border-white/[0.08] rounded-full px-4 py-2.5 font-mono text-offblack dark:text-parchment focus:outline-none focus:border-lake">
+              <button onclick="executeCustomCommand()" class="pill-btn-lake text-xs flex-shrink-0">
+                <span>Run ▸</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Output Box -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between text-xs text-smoke font-mono">
+              <span>OUTPUT LOG</span>
+              <button onclick="document.getElementById('cmdOutputArea').textContent = ''" class="hover:underline">Clear</button>
+            </div>
+            <pre id="cmdOutputArea" class="w-full bg-[#121214] text-parchment p-3 sm:p-4 rounded-2xl font-mono text-xs overflow-x-auto min-h-[140px] max-h-[350px]">Ready for execution...</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 5: REMOTE FILE BROWSER -->
+      <div id="tabContent-files" class="hidden space-y-4">
+        <div class="clean-card p-4 sm:p-7 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 class="text-2xl font-editorial">File Browser & Editor</h3>
+              <p class="text-xs text-smoke font-mono">Jelajahi direktori dan edit file konfigurasi server ini secara live.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="currentDirPath" class="text-xs font-mono text-smoke truncate max-w-[200px]">/root</span>
+              <button onclick="loadDirectory('/root')" class="pill-btn-ghost text-xs py-1.5 px-3 flex-shrink-0">Home</button>
+            </div>
+          </div>
+
+          <!-- Files Grid / List -->
+          <div class="overflow-x-auto rounded-2xl -mx-4 sm:mx-0 px-4 sm:px-0">
+            <table class="w-full text-left text-xs font-mono whitespace-nowrap">
+              <thead class="bg-black/[0.03] dark:bg-white/[0.04] text-smoke uppercase">
+                <tr>
+                  <th class="py-3 px-4 rounded-l-xl">Name</th>
+                  <th class="py-3 px-4">Size</th>
+                  <th class="py-3 px-4">Permissions</th>
+                  <th class="py-3 px-4 text-right rounded-r-xl">Action</th>
+                </tr>
+              </thead>
+              <tbody id="filesTableBody">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- FLOATING ANIME CHIBI COMPANION (Bottom-Right) -->
+  <div class="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 z-40 flex flex-col items-end">
+    
+    <!-- Companion Popover Panel -->
+    <div id="companionPanel" class="hidden mb-3 w-[calc(100vw-2rem)] max-w-xs p-4 sm:p-5 rounded-[28px] bg-white/95 dark:bg-darkCard/95 border border-black/[0.06] dark:border-white/[0.08] shadow-2xl space-y-3 relative overflow-hidden backdrop-blur-md">
+      <div class="flex items-center justify-between pb-2 border-b border-black/[0.04] dark:border-white/[0.06]">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-mint animate-ping"></span>
+          <span class="font-editorial text-lg text-offblack dark:text-parchment">Elaina</span>
+          <span class="pill-tag text-[9px] bg-sky/20 text-lake dark:text-sky">MASCOT</span>
+        </div>
+        <button onclick="toggleCompanionPanel()" class="text-smoke hover:text-offblack dark:hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-xs"></i>
+        </button>
+      </div>
+
+      <p id="companionMessage" class="text-xs font-mono text-graphite dark:text-smoke leading-relaxed">
+        "Senpai! Seluruh server terpantau aman terkendali di atas awan. Ada mantra atau perintah yang ingin dijalankan?"
+      </p>
+
+      <div class="grid grid-cols-2 gap-2 pt-1">
+        <button onclick="returnToSelector(); toggleCompanionPanel();" class="pill-btn-ghost text-[10px] py-1.5 px-2 justify-center">
+          <i class="fa-solid fa-server text-lake"></i> <span>Ganti Server</span>
+        </button>
+        <button onclick="switchTab('terminal'); toggleCompanionPanel();" class="pill-btn-ghost text-[10px] py-1.5 px-2 justify-center">
+          <i class="fa-solid fa-terminal text-mint"></i> <span>Terminal</span>
+        </button>
+        <button onclick="runQuickScript('free -h && df -h'); switchTab('commands'); toggleCompanionPanel();" class="pill-btn-ghost text-[10px] py-1.5 px-2 justify-center">
+          <i class="fa-solid fa-chart-pie text-sky"></i> <span>Status RAM</span>
+        </button>
+        <button onclick="praiseChibi()" class="pill-btn-ghost text-[10px] py-1.5 px-2 justify-center text-coral">
+          <i class="fa-solid fa-heart"></i> <span>Puji Elaina ✨</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Floating Chibi Mascot Button -->
+    <div class="relative group cursor-pointer" onclick="toggleCompanionPanel()">
+      <div class="absolute -top-8 right-0 bg-offblack text-parchment dark:bg-parchment dark:text-offblack text-[10px] font-mono py-1 px-3 rounded-full whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none shadow-md hidden sm:block">
+        Senpai, butuh bantuan?
+      </div>
+      
+      <!-- Mascot Chibi Avatar -->
+      <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-white dark:border-darkCard shadow-xl overflow-hidden bg-white dark:bg-darkCard hover:scale-105 transition-transform duration-200 chibi-floating">
+        <img src="/static/img/mascot_chibi.jpg?v=elaina_v1" alt="Elaina" class="w-full h-full object-cover">
+      </div>
+      
+      <!-- Online Badge -->
+      <div class="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-mint border-2 border-white dark:border-darkCard"></div>
+    </div>
+
+  </div>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- MODAL: RENAME SERVER -->
+  <div id="modalRenameNode" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-white dark:bg-darkCard rounded-[28px] sm:rounded-[36px] p-5 sm:p-7 space-y-5 shadow-2xl relative border border-black/[0.06] dark:border-white/[0.08]">
+      <button onclick="closeModal('modalRenameNode')" class="absolute top-5 right-5 text-smoke hover:text-offblack dark:hover:text-white p-1">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <div>
+        <div class="pill-tag bg-sky/20 text-lake dark:text-sky text-[10px]">SERVER CONFIGURATION</div>
+        <h3 class="text-2xl sm:text-3xl font-editorial mt-2">Edit Nama Server</h3>
+        <p class="text-xs text-smoke font-mono mt-1">Ubah nama atau label server agar mudah dikenali di dashboard.</p>
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-xs uppercase text-smoke font-mono">Nama Server</label>
+        <input type="text" id="renameNodeInput" placeholder="e.g. Server MT5 Utama" class="w-full text-xs bg-black/[0.02] dark:bg-darkCanvas border border-black/[0.08] dark:border-white/[0.08] rounded-full px-4 py-2.5 font-mono text-offblack dark:text-parchment focus:outline-none focus:border-lake">
+        <input type="hidden" id="renameNodeTargetId">
+      </div>
+
+      <div class="flex items-center gap-2 pt-1">
+        <button onclick="closeModal('modalRenameNode')" class="pill-btn-ghost text-xs flex-1 justify-center">
+          <span>Batal</span>
+        </button>
+        <button onclick="submitRenameNode()" class="pill-btn-lake text-xs flex-1 justify-center">
+          <span>Simpan Perubahan ▸</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD / LINK NEW NODE -->
+  <div id="modalAddNode" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="w-full max-w-lg bg-white dark:bg-darkCard rounded-[28px] sm:rounded-[36px] p-5 sm:p-7 space-y-5 shadow-2xl relative border border-black/[0.06] dark:border-white/[0.08] max-h-[90vh] overflow-y-auto">
+      <button onclick="closeModal('modalAddNode')" class="absolute top-5 right-5 text-smoke hover:text-offblack dark:hover:text-white p-1">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <div>
+        <div class="pill-tag bg-sky/20 text-lake dark:text-sky text-[10px]">NEW NODE ONBOARDING</div>
+        <h3 class="text-2xl sm:text-3xl font-editorial mt-2">Link Another Server</h3>
+        <p class="text-xs text-smoke font-mono mt-1">Deploy Kokoro Agent to another VPS or NAT instance with 1 simple bash command.</p>
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-xs uppercase text-smoke font-mono">Server Friendly Name</label>
+        <input type="text" id="newNodeNameInput" placeholder="e.g. NODE-03 // SG-VPS" class="w-full text-xs bg-black/[0.02] dark:bg-darkCanvas border border-black/[0.08] dark:border-white/[0.08] rounded-full px-4 py-2.5 font-mono text-offblack dark:text-parchment focus:outline-none focus:border-lake">
+      </div>
+
+      <button onclick="generateNodeInstaller()" class="pill-btn-lake w-full justify-center">
+        <span>Generate 1-Line Installer ▸</span>
+      </button>
+
+      <div id="newNodeCommandBox" class="hidden space-y-2 pt-3 border-t border-black/[0.06] dark:border-white/[0.08]">
+        <div class="flex items-center justify-between text-xs text-smoke font-mono">
+          <span>RUN ON TARGET SERVER (ROOT)</span>
+          <button onclick="copyInstallCmd()" class="text-lake dark:text-sky hover:underline font-mono text-[11px]"><i class="fa-regular fa-copy"></i> Copy</button>
+        </div>
+        <pre id="newNodeCmdText" class="w-full bg-[#121214] text-mint p-3 rounded-2xl font-mono text-[11px] overflow-x-auto whitespace-pre-wrap break-all"></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: FILE EDITOR -->
+  <div id="modalFileEditor" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="w-full max-w-4xl bg-white dark:bg-darkCard rounded-[28px] sm:rounded-[36px] p-5 sm:p-7 space-y-4 shadow-2xl relative border border-black/[0.06] dark:border-white/[0.08] max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between pb-3 border-b border-black/[0.04] dark:border-white/[0.06]">
+        <div class="truncate mr-4">
+          <span class="text-xs font-mono uppercase text-smoke">FILE EDITOR</span>
+          <h4 id="editorFilePath" class="text-base sm:text-lg font-mono font-medium text-offblack dark:text-parchment truncate">/root/config.json</h4>
+        </div>
+        <button onclick="closeModal('modalFileEditor')" class="text-smoke hover:text-offblack dark:hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <textarea id="editorFileText" rows="16" class="w-full bg-[#121214] text-parchment p-3 sm:p-4 rounded-2xl font-mono text-xs focus:outline-none resize-none flex-1"></textarea>
+
+      <div class="flex items-center justify-between pt-2">
+        <span id="editorSaveStatus" class="text-xs font-mono text-smoke">Backup created before save.</span>
+        <button onclick="saveCurrentFile()" class="pill-btn-lake text-xs">
+          <span>Save File ▸</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SETTINGS & ALERTS -->
+  <div id="modalSettings" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-white dark:bg-darkCard rounded-[28px] sm:rounded-[36px] p-5 sm:p-7 space-y-5 shadow-2xl relative border border-black/[0.06] dark:border-white/[0.08] max-h-[90vh] overflow-y-auto">
+      <button onclick="closeModal('modalSettings')" class="absolute top-5 right-5 text-smoke hover:text-offblack dark:hover:text-white p-1">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <div>
+        <div class="pill-tag bg-mint/20 text-offblack dark:text-mint text-[10px]">SECURITY & ALERTS</div>
+        <h3 class="text-2xl sm:text-3xl font-editorial mt-2">Platform Settings</h3>
+      </div>
+
+      <div class="space-y-4 text-xs font-mono">
+        <div class="space-y-1">
+          <label class="uppercase text-smoke">Dashboard Security PIN</label>
+          <input type="password" id="settingPin" class="w-full bg-black/[0.02] dark:bg-darkCanvas border border-black/[0.08] dark:border-white/[0.08] rounded-full px-4 py-2 text-offblack dark:text-parchment focus:outline-none">
+        </div>
+
+        <div class="space-y-1">
+          <label class="uppercase text-smoke">Telegram Bot Token (Optional)</label>
+          <input type="text" id="settingTgToken" placeholder="123456789:ABCdef..." class="w-full bg-black/[0.02] dark:bg-darkCanvas border border-black/[0.08] dark:border-white/[0.08] rounded-full px-4 py-2 text-offblack dark:text-parchment focus:outline-none">
+        </div>
+
+        <div class="space-y-1">
+          <label class="uppercase text-smoke">Telegram Chat ID</label>
+          <input type="text" id="settingTgChat" placeholder="e.g. 198234821" class="w-full bg-black/[0.02] dark:bg-darkCanvas border border-black/[0.08] dark:border-white/[0.08] rounded-full px-4 py-2 text-offblack dark:text-parchment focus:outline-none">
+        </div>
+      </div>
+
+      <button onclick="saveSettings()" class="pill-btn-lake w-full justify-center">
+        <span>Save Settings ▸</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- AUTHENTICATION MODAL (If Not Logged In) -->
+  <div id="modalAuth" class="fixed inset-0 z-50 bg-parchment dark:bg-darkCanvas flex items-center justify-center p-4 {% if is_auth %}hidden{% endif %}">
+    <div class="w-full max-w-sm p-6 sm:p-8 rounded-[32px] clean-card space-y-5 text-center shadow-xl">
+      <div class="w-14 h-14 mx-auto rounded-2xl bg-white dark:bg-darkCard border border-black/[0.06] dark:border-white/[0.08] flex items-center justify-center text-lake text-xl shadow-sm">
+        <i class="fa-solid fa-cloud"></i>
+      </div>
+      <div>
+        <h2 class="text-3xl font-editorial">Security Access</h2>
+        <p class="text-xs text-smoke font-mono mt-1">Enter Master Admin PIN to unlock fleet command.</p>
+      </div>
+      <div class="space-y-3">
+        <input type="password" id="authPinInput" placeholder="PIN (Default: 654321)" class="w-full text-center text-sm bg-black/[0.02] dark:bg-darkCanvas border border-black/[0.08] dark:border-white/[0.08] rounded-full px-4 py-3 font-mono text-offblack dark:text-parchment focus:outline-none focus:border-lake tracking-widest">
+        <div id="authErrorMsg" class="text-xs text-coral font-mono hidden">PIN Incorrect</div>
+      </div>
+      <button onclick="submitLogin()" class="pill-btn-lake w-full justify-center">
+        <span>Authenticate ▸</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== CLIENT LOGIC SCRIPT ==================== -->
+  <script>
+    let activeTab = 'terminal';
+    let selectedNodeId = null; // null = Server Selection screen, non-null = Dedicated Dashboard
+    let nodesList = [];
+    let term = null;
+    let termFit = null;
+    let termSocket = null;
+    let telemetryWs = null;
+
+    // Operator Dialogues (Pure English & Indonesian, Zero Kanji - Elaina The Ashen Witch)
+    const dayDialogues = [
+      "Langit berawan sejuk, Senpai! Seluruh node fleet beroperasi dalam sihir optimal.",
+      "Siapakah penyihir hebat yang memantau performa server Senpai setiap detik? Tepat sekali, aku! ✨",
+      "Elaina sudah mengecek semua service MT5 & Cloudflared, semuanya berjalan lancar tanpa kendala!",
+      "Web terminal bash siap digunakan kapan pun Senpai ingin mengeksekusi mantra (script).",
+      "Cuaca hari ini tenang sekali ya, jangan lupa santai sejenak sambil menikmati roti hangat, Senpai~"
+    ];
+
+    const nightDialogues = [
+      "Elaina di sini. Mode patroli malam aktif, langit berbintang menemani pengawasan server kita.",
+      "Siapakah penyihir malam yang tetap terjaga mengamankan lalu lintas jaringan Senpai? Ya, aku! ✨",
+      "Semua port incoming terkunci rapat, outbound websocket agent standby tanpa celah.",
+      "Bekerja larut malam ya, Senpai? Tenang, sihir perlindunganku siaga penuh mengawal servermu.",
+      "Nol intrusi dan latensi sangat stabil malam ini. Selamat beristirahat dengan tenang, Senpai~"
+    ];
+
+    let currentDialogueIdx = 0;
+
+    // Floating Chibi Companion Logic
+    function toggleCompanionPanel() {
+      const panel = document.getElementById('companionPanel');
+      panel.classList.toggle('hidden');
+    }
+
+    function triggerChibiReaction(msg) {
+      document.getElementById('companionMessage').textContent = `"${msg}"`;
+    }
+
+    function praiseChibi() {
+      const msgs = [
+        "Terima kasih Senpai! Siapakah penyihir jelita yang menjaga servermu ini? Ya, akulah Elaina! ✨",
+        "Ehehe~ Senpai baik sekali! Sihir perlindungan Elaina menjaga semua server tetap optimal!",
+        "Node aman terkendali! Penyihir pengembara ini siap terbang kapan saja Senpai butuh bantuan~"
+      ];
+      const pick = msgs[Math.floor(Math.random() * msgs.length)];
+      triggerChibiReaction(pick);
+    }
+
+    // Dark Mode Toggle & Operator Character Update
+    function updateOperatorForTheme(isDark) {
+      const portalImg = document.getElementById('portalOperatorImg');
+      const portalCode = document.getElementById('portalOperatorCode');
+      const portalName = document.getElementById('portalOperatorName');
+      const portalDialogue = document.getElementById('portalOperatorDialogue');
+
+      const dashThumb = document.getElementById('dashOperatorThumb');
+      const dashLabel = document.getElementById('dashOperatorNameLabel');
+      const headerAvatar = document.getElementById('activeNodeOperatorAvatar');
+
+      if (isDark) {
+        if (portalImg) portalImg.src = '/static/img/operator_night.jpg?v=elaina_v1';
+        if (portalCode) portalCode.textContent = 'OP-01 // ELAINA (NIGHT)';
+        if (portalName) portalName.textContent = 'Elaina (Starlight Watch)';
+        if (portalDialogue) portalDialogue.textContent = `"${nightDialogues[0]}"`;
+
+        if (dashThumb) dashThumb.src = '/static/img/operator_night.jpg?v=elaina_v1';
+        if (dashLabel) dashLabel.textContent = 'Elaina (Starlight Watch)';
+        if (headerAvatar) headerAvatar.src = '/static/img/operator_night.jpg?v=elaina_v1';
+      } else {
+        if (portalImg) portalImg.src = '/static/img/operator_day.jpg?v=elaina_v1';
+        if (portalCode) portalCode.textContent = 'OP-01 // ELAINA';
+        if (portalName) portalName.textContent = 'Operator Elaina';
+        if (portalDialogue) portalDialogue.textContent = `"${dayDialogues[0]}"`;
+
+        if (dashThumb) dashThumb.src = '/static/img/operator_day.jpg?v=elaina_v1';
+        if (dashLabel) dashLabel.textContent = 'Operator Elaina';
+        if (headerAvatar) headerAvatar.src = '/static/img/operator_day.jpg?v=elaina_v1';
+      }
+    }
+
+    function initTheme() {
+      const saved = localStorage.getItem('kokoro_theme') || 'light';
+      if (saved === 'dark') {
+        document.documentElement.classList.add('dark');
+        document.getElementById('themeModeIcon').textContent = '☀️ LIGHT';
+        updateOperatorForTheme(true);
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.getElementById('themeModeIcon').textContent = '🌙 DARK';
+        updateOperatorForTheme(false);
+      }
+    }
+
+    function toggleDarkMode() {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('kokoro_theme', isDark ? 'dark' : 'light');
+      document.getElementById('themeModeIcon').textContent = isDark ? '☀️ LIGHT' : '🌙 DARK';
+      updateOperatorForTheme(isDark);
+    }
+
+    initTheme();
+
+    // Clock
+    setInterval(() => {
+      const now = new Date();
+      document.getElementById('headerClock').textContent = now.toTimeString().split(' ')[0];
+    }, 1000);
+
+    // =========================================================================
+    // FLOW CONTROLLER: SELECTION SCREEN vs DEDICATED SERVER DASHBOARD
+    // =========================================================================
+
+    function selectServer(nodeId) {
+      selectedNodeId = nodeId;
+      localStorage.setItem('kokoro_active_node', nodeId);
+
+      const targetNode = nodesList.find(n => n.node_id === nodeId);
+      if (!targetNode) return;
+
+      // Switch view containers
+      document.getElementById('viewServerSelection').classList.add('hidden');
+      document.getElementById('viewServerDashboard').classList.remove('hidden');
+      document.getElementById('navBackBtn').classList.remove('hidden');
+
+      // Populate dedicated header
+      document.getElementById('activeNodeTitle').textContent = targetNode.name;
+      document.getElementById('activeNodeSubtitle').textContent = `${targetNode.os_info || 'Linux'} · Kernel ${targetNode.kernel || '5.2.0'}`;
+      
+      const isOnline = (targetNode.status === 'online');
+      document.getElementById('activeNodeStatusPill').textContent = isOnline ? 'ONLINE' : 'OFFLINE';
+      document.getElementById('activeNodeStatusPill').className = `pill-tag text-[9px] ${isOnline ? 'bg-mint/20 text-offblack dark:text-mint' : 'bg-coral/20 text-coral'}`;
+      document.getElementById('activeNodeStatusDot').className = `w-2 h-2 rounded-full ${isOnline ? 'bg-mint' : 'bg-coral'}`;
+
+      document.getElementById('activeNodeRolePill').textContent = targetNode.is_local ? 'HOST' : 'SATELLITE';
+      document.getElementById('activeNodeRolePill').className = `pill-tag text-[9px] ${targetNode.is_local ? 'bg-lake text-white' : 'bg-sky/30 text-lake dark:text-sky'}`;
+
+      document.getElementById('termCurrentNodeLabel').textContent = `SHELL: ${targetNode.name}`;
+      
+      // Update operator comment for this server
+      document.getElementById('dashOperatorComment').textContent = `"Senpai sedang berada di ${targetNode.name}. Seluruh eksekusi shell, services, dan proses terhubung langsung ke server ini."`;
+
+      // Update dedicated metrics
+      updateDedicatedNodeMetrics(targetNode);
+
+      // Reset and load active tab
+      switchTab(activeTab);
+      window.scrollTo({top: 0, behavior: 'smooth'});
+    }
+
+    function returnToSelector() {
+      selectedNodeId = null;
+      localStorage.removeItem('kokoro_active_node');
+
+      // Close active terminal session
+      if (termSocket) {
+        try { termSocket.close(); } catch(e){}
+      }
+
+      document.getElementById('viewServerDashboard').classList.add('hidden');
+      document.getElementById('viewServerSelection').classList.remove('hidden');
+      document.getElementById('navBackBtn').classList.add('hidden');
+
+      fetchNodes();
+      window.scrollTo({top: 0, behavior: 'smooth'});
+    }
+
+    function updateDedicatedNodeMetrics(node) {
+      if (!node) return;
+      const cpu = node.cpu ? node.cpu.percent : 0;
+      const memUsed = node.memory ? node.memory.used_mb : 0;
+      const memTotal = node.memory ? node.memory.total_mb : 0;
+      const memPct = node.memory ? node.memory.percent : 0;
+      const diskUsed = node.disk ? node.disk.used_gb : 0;
+      const diskTotal = node.disk ? node.disk.total_gb : 0;
+      const diskPct = node.disk ? node.disk.percent : 0;
+      const loadAvg = node.cpu && node.cpu.load_avg ? node.cpu.load_avg.slice(0, 2).join(', ') : '0.0, 0.0';
+      const rx = node.network ? node.network.rx_kbps || 0 : 0;
+
+      document.getElementById('dashValCpu').textContent = `${cpu}%`;
+      document.getElementById('dashValLoadAvg').textContent = `Load Avg: ${loadAvg}`;
+
+      document.getElementById('dashValMem').textContent = `${memUsed} / ${memTotal} MB`;
+      document.getElementById('dashValMemPct').textContent = `${memPct}% Terpakai`;
+
+      document.getElementById('dashValDisk').textContent = `${diskUsed} / ${diskTotal} GB`;
+      document.getElementById('dashValDiskPct').textContent = `${diskPct}% Terpakai`;
+
+      document.getElementById('dashValUptime').textContent = formatUptime(node.uptime);
+      document.getElementById('dashValNet').textContent = `Drift: ${rx.toFixed(1)} KB/s`;
+    }
+
+    function fetchCurrentNodeData() {
+      fetchNodes();
+    }
+
+    // =========================================================================
+    // SERVER SELECTION RENDERER
+    // =========================================================================
+
+    function renderServerSelectionCards(nodes) {
+      const container = document.getElementById('selectorServerCards');
+      container.innerHTML = '';
+
+      const onlineCount = nodes.filter(n => n.status === 'online').length;
+      document.getElementById('portalFleetBadge').textContent = `${onlineCount} / ${nodes.length} READY`;
+      document.getElementById('portalOnlineCount').textContent = `${onlineCount} Server Online`;
+
+      nodes.forEach((node, idx) => {
+        const isOnline = (node.status === 'online');
+        const cpu = node.cpu ? node.cpu.percent : 0;
+        const mem = node.memory ? node.memory.percent : 0;
+        const disk = node.disk ? node.disk.percent : 0;
+        const isHost = node.is_local;
+
+        const card = document.createElement('div');
+        card.className = `clean-card p-6 sm:p-7 space-y-5 relative overflow-hidden transition-all duration-200 hover:-translate-y-1 cursor-pointer ${isHost ? 'bg-periwinkle/25 dark:bg-darkPeriwinkle/30' : ''}`;
+        card.onclick = () => selectServer(node.node_id);
+
+        card.innerHTML = `
+          <div class="flex items-start justify-between">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-mint' : 'bg-coral'}"></span>
+                <span class="pill-tag text-[9px] ${isOnline ? 'bg-mint/20 text-offblack dark:text-mint' : 'bg-coral/20 text-coral'}">
+                  ${isOnline ? 'ONLINE' : 'OFFLINE'}
+                </span>
+                ${isHost ? '<span class="pill-tag text-[9px] bg-lake text-white">HOST CLOUD</span>' : '<span class="pill-tag text-[9px] bg-sky/30 text-lake dark:text-sky">SATELLITE NODE</span>'}
+              </div>
+              <div class="flex items-center gap-2 mt-2">
+                <h3 class="text-2xl sm:text-3xl font-editorial text-offblack dark:text-parchment">${node.name}</h3>
+                <button onclick="openRenameModal('${node.node_id}', '${escapeHtml(node.name)}', event)" class="w-7 h-7 rounded-full bg-black/[0.04] dark:bg-white/[0.06] hover:bg-lake hover:text-white flex items-center justify-center transition text-smoke p-1" title="Edit Nama Server">
+                  <i class="fa-solid fa-pen-to-square text-[11px]"></i>
+                </button>
+                ${!isHost ? `
+                <button onclick="confirmDeleteNode('${node.node_id}', '${escapeHtml(node.name)}', event)" class="w-7 h-7 rounded-full bg-black/[0.04] dark:bg-white/[0.06] hover:bg-coral hover:text-white flex items-center justify-center transition text-smoke p-1" title="Hapus Server">
+                  <i class="fa-solid fa-trash-can text-[11px]"></i>
+                </button>
+                ` : ''}
+              </div>
+              <p class="text-xs text-smoke font-mono">${node.os_info || 'Linux'} · Kernel ${node.kernel || '5.2.0'}</p>
+            </div>
+
+            <!-- Server Icon -->
+            <div class="w-12 h-12 rounded-2xl bg-white/80 dark:bg-darkCard flex items-center justify-center text-lake text-lg shadow-sm border border-black/[0.04] dark:border-white/[0.06]">
+              <i class="fa-solid fa-server"></i>
+            </div>
+          </div>
+
+          <!-- Quick Metrics Preview -->
+          <div class="grid grid-cols-3 gap-2.5 pt-2">
+            <div class="bg-black/[0.02] dark:bg-white/[0.03] p-3 rounded-2xl text-center">
+              <div class="text-[10px] text-smoke font-mono">CPU</div>
+              <div class="text-lg font-mono font-medium text-offblack dark:text-parchment">${cpu}%</div>
+            </div>
+            <div class="bg-black/[0.02] dark:bg-white/[0.03] p-3 rounded-2xl text-center">
+              <div class="text-[10px] text-smoke font-mono">RAM</div>
+              <div class="text-lg font-mono font-medium text-offblack dark:text-parchment">${mem}%</div>
+            </div>
+            <div class="bg-black/[0.02] dark:bg-white/[0.03] p-3 rounded-2xl text-center">
+              <div class="text-[10px] text-smoke font-mono">DISK</div>
+              <div class="text-lg font-mono font-medium text-offblack dark:text-parchment">${disk}%</div>
+            </div>
+          </div>
+
+          <!-- Bottom Action Strip -->
+          <div class="flex items-center justify-between pt-3 border-t border-black/[0.04] dark:border-white/[0.06] text-xs font-mono">
+            <span class="text-smoke flex items-center gap-1.5"><i class="fa-solid fa-clock text-[10px] text-sky"></i> Uptime: ${formatUptime(node.uptime)}</span>
+            <button class="pill-btn-lake text-xs">
+              <span>Kelola Server Ini ▸</span>
+            </button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+
+      // Add "Link New Server" Card at the end
+      const addCard = document.createElement('div');
+      addCard.className = 'clean-card p-6 sm:p-7 border-dashed border-2 border-black/10 dark:border-white/10 flex flex-col items-center justify-center text-center space-y-3 cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition min-h-[220px]';
+      addCard.onclick = () => openAddNodeModal();
+      addCard.innerHTML = `
+        <div class="w-12 h-12 rounded-2xl bg-sky/20 text-lake dark:text-sky flex items-center justify-center text-xl">
+          <i class="fa-solid fa-plus"></i>
+        </div>
+        <div>
+          <h4 class="text-xl font-editorial text-offblack dark:text-parchment">Tambah Server Baru</h4>
+          <p class="text-xs text-smoke font-mono mt-1">Sambungkan VPS atau NAT instance baru via 1-line curl script.</p>
+        </div>
+        <span class="pill-btn-ghost text-xs mt-2">+ Link Server</span>
+      `;
+      container.appendChild(addCard);
+    }
+
+    // =========================================================================
+    // FETCH NODES & TELEMETRY
+    // =========================================================================
+
+    async function fetchNodes() {
+      try {
+        const res = await fetch('/api/nodes');
+        if (res.status === 401) return;
+        const data = await res.json();
+        nodesList = data.nodes || [];
+        
+        renderServerSelectionCards(nodesList);
+
+        // If a server is currently active in dashboard, refresh its metrics
+        if (selectedNodeId) {
+          const current = nodesList.find(n => n.node_id === selectedNodeId);
+          if (current) {
+            updateDedicatedNodeMetrics(current);
+          }
+        }
+      } catch (e) {
+        console.error("Error fetching nodes:", e);
+      }
+    }
+
+    function startTelemetryWs() {
+      const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProtocol}//${location.host}/ws/telemetry`;
+      telemetryWs = new WebSocket(wsUrl);
+
+      telemetryWs.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === 'telemetry') {
+            nodesList = msg.nodes;
+            renderServerSelectionCards(nodesList);
+            if (selectedNodeId) {
+              const current = nodesList.find(n => n.node_id === selectedNodeId);
+              if (current) {
+                updateDedicatedNodeMetrics(current);
+                document.getElementById('activeNodeTitle').textContent = current.name;
+                document.getElementById('termCurrentNodeLabel').textContent = `SHELL: ${current.name}`;
+              }
+            }
+          }
+        } catch(e){}
+      };
+
+      telemetryWs.onclose = () => {
+        setTimeout(startTelemetryWs, 3000);
+      };
+    }
+
+    // =========================================================================
+    // DEDICATED TABS & TERMINAL (SCOPED EXCLUSIVELY TO selectedNodeId)
+    // =========================================================================
+
+    function switchTab(tabId) {
+      if (!selectedNodeId) return;
+      activeTab = tabId;
+      ['terminal', 'services', 'processes', 'commands', 'files'].forEach(t => {
+        const btn = document.getElementById(`tabBtn-${t}`);
+        const content = document.getElementById(`tabContent-${t}`);
+        if (t === tabId) {
+          btn.className = 'pill-btn-lake text-xs flex-shrink-0';
+          content.classList.remove('hidden');
+        } else {
+          btn.className = 'pill-btn-ghost text-xs flex-shrink-0';
+          content.classList.add('hidden');
+        }
+      });
+
+      if (tabId === 'terminal') {
+        setTimeout(initTerminal, 80);
+      } else if (tabId === 'services') {
+        loadServices();
+      } else if (tabId === 'processes') {
+        loadProcesses();
+      } else if (tabId === 'files') {
+        loadDirectory('/root');
+      }
+    }
+
+    // Terminal Initialization (xterm.js)
+    function initTerminal() {
+      if (!selectedNodeId) return;
+      const mount = document.getElementById('terminalMount');
+      mount.innerHTML = '';
+
+      if (termSocket) {
+        try { termSocket.close(); } catch(e){}
+      }
+
+      term = new Terminal({
+        theme: {
+          background: '#121214',
+          foreground: '#f6f3f1',
+          cursor: '#2b59d1',
+          selectionBackground: 'rgba(160, 181, 235, 0.3)'
+        },
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: 12,
+        lineHeight: 1.2,
+        cursorBlink: true
+      });
+
+      termFit = new FitAddon.FitAddon();
+      term.loadAddon(termFit);
+      term.open(mount);
+      termFit.fit();
+
+      window.addEventListener('resize', () => termFit && termFit.fit());
+
+      const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProtocol}//${location.host}/ws/terminal/${selectedNodeId}`;
+      termSocket = new WebSocket(wsUrl);
+
+      termSocket.binaryType = 'arraybuffer';
+
+      termSocket.onopen = () => {
+        term.writeln('\x1b[38;2;160;181;235mKOKORO // ISOLATED SHELL ESTABLISHED\x1b[0m');
+        term.writeln(`\x1b[38;2;206;202;200mConnected directly to node: ${selectedNodeId}\x1b[0m\r\n`);
+        termFit.fit();
+        termSocket.send(JSON.stringify({resize: [term.cols, term.rows]}));
+      };
+
+      termSocket.onmessage = (ev) => {
+        if (typeof ev.data === 'string') {
+          term.write(ev.data);
+        } else {
+          const uint8 = new Uint8Array(ev.data);
+          term.write(uint8);
+        }
+      };
+
+      termSocket.onclose = () => {
+        term.writeln('\r\n\x1b[38;2;255;148;115m[!] Connection to terminal closed.\x1b[0m');
+      };
+
+      term.onData((data) => {
+        if (termSocket && termSocket.readyState === WebSocket.OPEN) {
+          termSocket.send(data);
+        }
+      });
+
+      term.onResize((size) => {
+        if (termSocket && termSocket.readyState === WebSocket.OPEN) {
+          termSocket.send(JSON.stringify({resize: [size.cols, size.rows]}));
+        }
+      });
+    }
+
+    // Services Manager
+    let rawServices = [];
+    async function loadServices() {
+      if (!selectedNodeId) return;
+      const tbody = document.getElementById('servicesTableBody');
+      tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-smoke">Loading services for this server...</td></tr>';
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/services`);
+        const data = await res.json();
+        rawServices = data.services || [];
+        renderServicesTable(rawServices);
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-coral">Failed to load services.</td></tr>';
+      }
+    }
+
+    function renderServicesTable(services) {
+      const tbody = document.getElementById('servicesTableBody');
+      tbody.innerHTML = '';
+      services.forEach(s => {
+        const isRunning = (s.active === 'active');
+        const tr = document.createElement('tr');
+        tr.className = s.highlight ? 'bg-periwinkle/10 dark:bg-darkPeriwinkle/20' : 'hover:bg-black/[0.02] dark:hover:bg-white/[0.02]';
+        tr.innerHTML = `
+          <td class="py-2.5 px-4 font-medium text-offblack dark:text-parchment rounded-l-xl">${s.name}</td>
+          <td class="py-2.5 px-4">
+            <span class="pill-tag text-[9px] ${isRunning ? 'bg-mint/20 text-offblack dark:text-mint' : 'bg-coral/20 text-coral'}">
+              ${s.active}
+            </span>
+          </td>
+          <td class="py-2.5 px-4 text-smoke">${s.sub}</td>
+          <td class="py-2.5 px-4 text-smoke truncate max-w-xs">${s.description || '-'}</td>
+          <td class="py-2.5 px-4 text-right space-x-1 rounded-r-xl">
+            <button onclick="controlService('${s.name}', 'restart')" class="pill-btn-ghost text-[10px] py-1 px-2.5">Restart</button>
+            <button onclick="controlService('${s.name}', '${isRunning ? 'stop' : 'start'}')" class="pill-btn-ghost text-[10px] py-1 px-2.5 ${isRunning ? 'text-coral' : 'text-mint'}">
+              ${isRunning ? 'Stop' : 'Start'}
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function filterServices() {
+      const q = document.getElementById('serviceSearchInput').value.toLowerCase();
+      const filtered = rawServices.filter(s => s.name.toLowerCase().includes(q) || (s.description && s.description.toLowerCase().includes(q)));
+      renderServicesTable(filtered);
+    }
+
+    async function controlService(serviceName, op) {
+      if (!confirm(`${op.toUpperCase()} service ${serviceName}?`)) return;
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/service-action`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({service_name: serviceName, action: op})
+        });
+        const d = await res.json();
+        alert(d.message || d.error);
+        loadServices();
+      } catch (e) {
+        alert("Operation failed");
+      }
+    }
+
+    // Processes Manager
+    async function loadProcesses(sortBy = 'cpu') {
+      if (!selectedNodeId) return;
+      const tbody = document.getElementById('processesTableBody');
+      tbody.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-smoke">Reading processes for this server...</td></tr>';
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/processes?sort_by=${sortBy}`);
+        const data = await res.json();
+        const procs = data.processes || [];
+        tbody.innerHTML = '';
+        procs.forEach(p => {
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-black/[0.02] dark:hover:bg-white/[0.02]';
+          tr.innerHTML = `
+            <td class="py-2 px-4 font-mono text-smoke rounded-l-xl">${p.pid}</td>
+            <td class="py-2 px-4 font-medium text-offblack dark:text-parchment">${p.name}</td>
+            <td class="py-2 px-4 text-smoke">${p.user}</td>
+            <td class="py-2 px-4 text-lake font-medium">${p.cpu}%</td>
+            <td class="py-2 px-4 text-mint font-medium">${p.memory}%</td>
+            <td class="py-2 px-4 text-smoke truncate max-w-sm font-mono text-[11px]">${p.cmd}</td>
+            <td class="py-2 px-4 text-right rounded-r-xl">
+              <button onclick="killProcess(${p.pid})" class="text-coral hover:underline font-mono text-[11px]">Kill</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-coral">Failed to load processes.</td></tr>';
+      }
+    }
+
+    async function killProcess(pid) {
+      if (!confirm(`Send SIGKILL to PID ${pid}?`)) return;
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/kill-process`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({pid, signal: 9})
+        });
+        const d = await res.json();
+        alert(d.message || d.error);
+        loadProcesses();
+      } catch(e) {
+        alert("Failed to kill process");
+      }
+    }
+
+    // Quick Command Execution
+    async function runQuickScript(cmd) {
+      document.getElementById('customCmdInput').value = cmd;
+      executeCustomCommand();
+    }
+
+    async function executeCustomCommand() {
+      if (!selectedNodeId) return;
+      const cmd = document.getElementById('customCmdInput').value.trim();
+      if (!cmd) return;
+      const outArea = document.getElementById('cmdOutputArea');
+      outArea.textContent = `[*] Executing on active server (${selectedNodeId}): ${cmd}\n\nRunning...`;
+
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/exec`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({command: cmd})
+        });
+        const data = await res.json();
+        outArea.textContent = `[+] Exit Code: ${data.exit_code} (Elapsed: ${data.elapsed}s)\n\nSTDOUT:\n${data.stdout}\n\nSTDERR:\n${data.stderr || '(none)'}`;
+      } catch (e) {
+        outArea.textContent = `[!] Execution failed: ${e}`;
+      }
+    }
+
+    // Remote File Manager
+    let currentPath = '/root';
+    async function loadDirectory(path) {
+      if (!selectedNodeId) return;
+      currentPath = path;
+      document.getElementById('currentDirPath').textContent = path;
+      const tbody = document.getElementById('filesTableBody');
+      tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-smoke">Scanning directory...</td></tr>';
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/files?path=${encodeURIComponent(path)}`);
+        const data = await res.json();
+        const entries = data.entries || [];
+        tbody.innerHTML = '';
+
+        if (path !== '/' && path !== '') {
+          const parentPath = path.substring(0, path.lastIndexOf('/')) || '/';
+          const tr = document.createElement('tr');
+          tr.className = 'cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.02]';
+          tr.onclick = () => loadDirectory(parentPath);
+          tr.innerHTML = `
+            <td class="py-2 px-4 font-bold text-lake rounded-l-xl"><i class="fa-solid fa-arrow-up mr-2"></i>.. (Parent Directory)</td>
+            <td class="py-2 px-4">-</td>
+            <td class="py-2 px-4">-</td>
+            <td class="py-2 px-4 text-right rounded-r-xl">-</td>
+          `;
+          tbody.appendChild(tr);
+        }
+
+        entries.forEach(e => {
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-black/[0.02] dark:hover:bg-white/[0.02]';
+          tr.innerHTML = `
+            <td class="py-2 px-4 font-medium text-offblack dark:text-parchment flex items-center gap-2 cursor-pointer rounded-l-xl" onclick="${e.is_dir ? `loadDirectory('${e.path}')` : `openFileEditor('${e.path}')`}">
+              <i class="fa-solid ${e.is_dir ? 'fa-folder text-sky' : 'fa-file-lines text-smoke'}"></i>
+              <span class="truncate max-w-[200px] sm:max-w-md">${e.name}</span>
+            </td>
+            <td class="py-2 px-4 text-smoke">${e.is_dir ? '-' : formatBytes(e.size)}</td>
+            <td class="py-2 px-4 text-smoke font-mono">${e.mode}</td>
+            <td class="py-2 px-4 text-right rounded-r-xl">
+              ${e.is_dir 
+                ? `<button onclick="loadDirectory('${e.path}')" class="pill-btn-ghost text-[10px] py-0.5 px-2">Open</button>`
+                : `<button onclick="openFileEditor('${e.path}')" class="pill-btn-ghost text-[10px] py-0.5 px-2 text-lake">Edit</button>`}
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-coral">Failed to read directory.</td></tr>';
+      }
+    }
+
+    async function openFileEditor(path) {
+      if (!selectedNodeId) return;
+      document.getElementById('editorFilePath').textContent = path;
+      document.getElementById('editorFileText').value = 'Loading file content...';
+      openModal('modalFileEditor');
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/file-content?path=${encodeURIComponent(path)}`);
+        const data = await res.json();
+        document.getElementById('editorFileText').value = data.content || '';
+      } catch (e) {
+        document.getElementById('editorFileText').value = 'Failed to load file.';
+      }
+    }
+
+    async function saveCurrentFile() {
+      if (!selectedNodeId) return;
+      const path = document.getElementById('editorFilePath').textContent;
+      const content = document.getElementById('editorFileText').value;
+      const statusEl = document.getElementById('editorSaveStatus');
+      statusEl.textContent = 'Saving...';
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/file-save`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({path, content})
+        });
+        const d = await res.json();
+        if (d.success) {
+          statusEl.textContent = 'File saved successfully!';
+          setTimeout(() => closeModal('modalFileEditor'), 1000);
+        } else {
+          statusEl.textContent = `Error: ${d.error}`;
+        }
+      } catch (e) {
+        statusEl.textContent = 'Network error saving file';
+      }
+    }
+
+    // =========================================================================
+    // MODALS & AUTHENTICATION
+    // =========================================================================
+
+    function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+    function openAddNodeModal() { openModal('modalAddNode'); }
+    function openSettingsModal() { 
+      loadSettings();
+      openModal('modalSettings'); 
+    }
+
+    async function submitLogin() {
+      const pin = document.getElementById('authPinInput').value;
+      const err = document.getElementById('authErrorMsg');
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({pin})
+        });
+        const data = await res.json();
+        if (data.success) {
+          document.getElementById('modalAuth').classList.add('hidden');
+          location.reload();
+        } else {
+          err.classList.remove('hidden');
+        }
+      } catch (e) {
+        err.classList.remove('hidden');
+      }
+    }
+
+    async function generateNodeInstaller() {
+      const name = document.getElementById('newNodeNameInput').value.trim() || 'Remote-VPS';
+      try {
+        const res = await fetch('/api/nodes/register', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name})
+        });
+        const d = await res.json();
+        if (d.success) {
+          document.getElementById('newNodeCommandBox').classList.remove('hidden');
+          document.getElementById('newNodeCmdText').textContent = d.install_command;
+          fetchNodes();
+        }
+      } catch (e) {
+        alert("Failed to generate node token");
+      }
+    }
+
+    function copyInstallCmd() {
+      const txt = document.getElementById('newNodeCmdText').textContent;
+      navigator.clipboard.writeText(txt);
+      alert("Command copied to clipboard!");
+    }
+
+    async function loadSettings() {
+      try {
+        const res = await fetch('/api/settings');
+        const d = await res.json();
+        document.getElementById('settingPin').value = d.pin || '';
+        document.getElementById('settingTgToken').value = d.telegram_bot_token || '';
+        document.getElementById('settingTgChat').value = d.telegram_chat_id || '';
+      } catch(e){}
+    }
+
+    async function saveSettings() {
+      const pin = document.getElementById('settingPin').value;
+      const telegram_bot_token = document.getElementById('settingTgToken').value;
+      const telegram_chat_id = document.getElementById('settingTgChat').value;
+      try {
+        const res = await fetch('/api/settings', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({pin, telegram_bot_token, telegram_chat_id})
+        });
+        const d = await res.json();
+        alert(d.message);
+        closeModal('modalSettings');
+      } catch (e) {
+        alert("Failed to save settings");
+      }
+    }
+
+    // Helpers
+    function formatUptime(secs) {
+      if (!secs) return '0m';
+      const d = Math.floor(secs / 86400);
+      const h = Math.floor((secs % 86400) / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      if (d > 0) return `${d}d ${h}h`;
+      if (h > 0) return `${h}h ${m}m`;
+      return `${m}m`;
+    }
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function openRenameModal(nodeId, currentName, ev) {
+      if (ev) ev.stopPropagation();
+      document.getElementById('renameNodeTargetId').value = nodeId;
+      document.getElementById('renameNodeInput').value = currentName || '';
+      openModal('modalRenameNode');
+      setTimeout(() => document.getElementById('renameNodeInput').focus(), 100);
+    }
+
+    function openRenameActiveNodeModal() {
+      if (!selectedNodeId) return;
+      const current = nodesList.find(n => n.node_id === selectedNodeId);
+      const name = current ? current.name : '';
+      openRenameModal(selectedNodeId, name);
+    }
+
+    async function submitRenameNode() {
+      const nodeId = document.getElementById('renameNodeTargetId').value;
+      const newName = document.getElementById('renameNodeInput').value.trim();
+      if (!newName) {
+        alert("Nama server tidak boleh kosong.");
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/nodes/${nodeId}/rename`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name: newName})
+        });
+        const data = await res.json();
+        if (data.success) {
+          closeModal('modalRenameNode');
+          
+          // Update in local cache
+          const node = nodesList.find(n => n.node_id === nodeId);
+          if (node) node.name = newName;
+          
+          // Refresh views
+          renderServerSelectionCards(nodesList);
+          if (selectedNodeId === nodeId) {
+            document.getElementById('activeNodeTitle').textContent = newName;
+            document.getElementById('termCurrentNodeLabel').textContent = `SHELL: ${newName}`;
+          }
+        } else {
+          alert(data.detail || "Gagal mengubah nama server.");
+        }
+      } catch (e) {
+        alert("Gagal menghubungi server.");
+      }
+    }
+
+    async function confirmDeleteNode(nodeId, nodeName, ev) {
+      if (ev) ev.stopPropagation();
+      if (!confirm(`Apakah Anda yakin ingin menghapus server "${nodeName}" (${nodeId}) dari panel?`)) {
+        return;
+      }
+      try {
+        const res = await fetch(`/api/nodes/${nodeId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          alert(`Server "${nodeName}" berhasil dihapus.`);
+          await fetchNodes();
+        } else {
+          alert(data.detail || "Gagal menghapus server.");
+        }
+      } catch (err) {
+        alert("Gagal menghubungi server: " + err.message);
+      }
+    }
+
+    async function cleanRamCache() {
+      if (!selectedNodeId) return;
+      const targetNode = nodesList.find(n => n.node_id === selectedNodeId);
+      const name = targetNode ? targetNode.name : selectedNodeId;
+      if (!confirm(`Bersihkan kernel cache RAM untuk server "${name}"? (sync && echo 3 > /proc/sys/vm/drop_caches)`)) return;
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/clean-cache`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          alert(data.message || 'RAM Cache berhasil dibersihkan!');
+          setTimeout(() => fetchCurrentNodeData(), 1000);
+        } else {
+          alert(data.detail || data.error || 'Gagal membersihkan cache RAM.');
+        }
+      } catch (err) {
+        alert('Gagal menghubungi server: ' + err.message);
+      }
+    }
+
+    async function rebootServer() {
+      if (!selectedNodeId) return;
+      const targetNode = nodesList.find(n => n.node_id === selectedNodeId);
+      const name = targetNode ? targetNode.name : selectedNodeId;
+      if (!confirm(`PERINGATAN: Apakah Anda yakin ingin me-reboot server "${name}"? Koneksi akan terputus selama beberapa saat.`)) return;
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/reboot`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          alert(data.message || `Server "${name}" sedang reboot...`);
+        } else {
+          alert(data.detail || 'Gagal reboot server.');
+        }
+      } catch (err) {
+        alert('Gagal menghubungi server: ' + err.message);
+      }
+    }
+
+    // Initialize Page
+    document.addEventListener('DOMContentLoaded', async () => {
+      await fetchNodes();
+      startTelemetryWs();
+
+      const savedNode = localStorage.getItem('kokoro_active_node');
+      if (savedNode && nodesList.some(n => n.node_id === savedNode)) {
+        selectServer(savedNode);
+      }
+    });
+  </script>
+</body>
+</html>
