@@ -4,7 +4,7 @@
 
 Kokoro is a lightweight, responsive server operations and remote node management dashboard crafted with an editorial Monad aesthetic (warm parchment palette, ABC Diatype Mono typography, and dark mode support).
 
-Featuring **Elaina** (the Wandering Witch) as the operator mascot, Kokoro delivers real-time telemetry, full reverse-terminal access (even for NAT instances behind firewalls), service & process controls, and file management across multiple remote Linux nodes.
+Featuring **Elaina** (the Wandering Witch) as the operator mascot, Kokoro delivers real-time telemetry, full reverse-terminal access (even for NAT instances behind firewalls), service & process controls, and complete file management (browse, edit, upload, download, extract) across multiple remote Linux nodes.
 
 ---
 
@@ -19,12 +19,19 @@ Featuring **Elaina** (the Wandering Witch) as the operator mascot, Kokoro delive
   - Customizable server display names.
   - One-click node deletion & unlinking.
 - **Full Remote Operations**:
-  - **Interactive Terminal**: Real-time bidirectional PTY shell via `xterm.js` over WebSocket.
+  - **Interactive Terminal**: Real-time bidirectional PTY shell via `xterm.js` over WebSocket with auto process lifecycle cleanup.
   - **System Services (systemd)**: Start, stop, restart, reload, and view live logs (`journalctl`).
   - **Process Explorer**: View running processes, sort by CPU/RAM usage, and kill stuck processes (`SIGTERM` / `SIGKILL`).
   - **Quick Script Runner**: Run bash commands directly with stdout/stderr capture and execution timing.
-  - **Remote File Manager**: Browse directories, view files, and edit server configs remotely.
+  - **Enhanced Remote File Manager**:
+    - Directory navigation and permissions inspector.
+    - View and live-edit configuration files (with automatic `.bak` backup creation).
+    - **File Upload**: Direct file uploading to any server directory with progress tracking.
+    - **File Download**: 1-click download of server files to local client.
+    - **Archive Extraction**: In-place extraction supporting `.zip`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tar.xz`, `.tar`, `.rar`, and `.7z`.
   - **System Power Actions**: Clean RAM cache (`sync && drop_caches` with OpenVZ/LXC/KVM container awareness) and Remote Reboot.
+- **Modular Codebase**:
+  - Clean separation into `core/` (config, DB, auth), `services/` (telemetry, systemd, process, terminal, file_manager), and `routers/` (FastAPI APIRouter).
 - **Aesthetic UI & UX**:
   - Monad warm parchment light theme (`#f6f3f1`) & sleek dark mode (`#121214`).
   - Smooth anime operator branding with dynamic day/night mascot transitions.
@@ -53,6 +60,42 @@ Featuring **Elaina** (the Wandering Witch) as the operator mascot, Kokoro delive
 
 ---
 
+## 📂 Modular Codebase Layout
+
+```
+server-manager/
+├── app.py                      # Main application entry point & router mounting
+├── core/
+│   ├── config.py               # Paths, agent connection registry, RPC dispatcher
+│   ├── database.py             # SQLite DB helpers, settings, audit logging
+│   └── security.py             # PIN authentication & cookie verification
+├── services/
+│   ├── telemetry.py            # Local hardware telemetry & delta I/O tracker
+│   ├── systemd.py              # Systemd unit controller & log viewer
+│   ├── process.py              # Process manager & signal killer
+│   ├── terminal.py             # PTY bash terminal spawner with leak-proof cleanup
+│   └── file_manager.py         # File read/write, upload, download, and archive extraction
+├── routers/
+│   ├── auth.py                 # PIN login and logout
+│   ├── nodes.py                # Server registration, deletion, rename, reboot, clean-cache
+│   ├── services.py             # Systemd service actions and logs
+│   ├── processes.py            # Process listing and termination
+│   ├── files.py                # File listing, editing, upload, download, extract
+│   ├── exec_cmd.py             # Ad-hoc bash script execution
+│   ├── settings.py             # Platform settings and audit logs
+│   └── websockets.py           # Real-time telemetry, web terminal, and agent WS hub
+├── agent/
+│   └── agent.py                # Satellite node agent daemon
+├── templates/
+│   └── index.html              # Responsive Monad UI with Elaina operator
+├── static/
+│   └── agent/agent.py          # Public agent installer target
+└── scripts/
+    └── install-agent.sh        # 1-line agent installer
+```
+
+---
+
 ## 🚀 Quick Start
 
 ### 1. Requirements
@@ -63,12 +106,8 @@ Featuring **Elaina** (the Wandering Witch) as the operator mascot, Kokoro delive
 ### 2. Hub Installation
 
 ```bash
-git clone git@github.com:ahmadmct/server-manager.git
-cd server-manager
-
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
+git clone https://github.com/Aalfars/custom-server-manager.git
+cd custom-server-manager
 
 # Install dependencies
 pip install -r requirements.txt
@@ -79,7 +118,7 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 
 ### 3. Satellite Node Agent Deployment (1-Line Install)
 
-From the Kokoro Web UI, click **"+ Tambah Server Baru"** to generate a unique registration token and 1-line curl command:
+From the Kokoro Web UI, click **"+ Link Node ▸"** to generate a unique registration token and 1-line curl command:
 
 ```bash
 curl -sSL https://<YOUR_HUB_DOMAIN>/install-agent.sh | bash -s -- --hub https://<YOUR_HUB_DOMAIN> --token <NODE_TOKEN> --name "My Satellite Node"
@@ -93,10 +132,10 @@ The installer configures `kokoro-agent.service` via `systemd` to automatically c
 
 - Single-PIN authentication protection for dashboard access.
 - Secure token-based WebSocket handshake for satellite nodes.
-- Full audit logging for commands, service actions, and file edits.
+- Full audit logging for commands, service actions, and file operations.
 
 ---
 
 ## 📜 License
 
-MIT License © 2026 ahmadmct
+MIT License © 2026 Aalfars

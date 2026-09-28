@@ -132,14 +132,8 @@ async def handle_rpc(data: dict) -> dict:
             highlight = ["nginx", "ssh", "cron", "docker", "mt5", "trading"]
             for line in res.stdout.splitlines():
                 parts = line.strip().split()
-                if not parts:
-                    continue
-                if parts[0] in ("●", "*", "x", "!") and len(parts) >= 5:
-                    parts = parts[1:]
                 if len(parts) >= 4:
                     unit_name = parts[0]
-                    if not (unit_name.endswith(".service") or unit_name.endswith(".timer") or unit_name.endswith(".socket")):
-                        continue
                     load = parts[1]
                     active = parts[2]
                     sub = parts[3]
@@ -250,6 +244,60 @@ async def handle_rpc(data: dict) -> dict:
             with open(path, "w", encoding="utf-8") as f:
                 f.write(content)
             return {"success": True, "message": "File saved"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    elif action == "save_binary":
+        path = os.path.abspath(data.get("path", ""))
+        b64 = data.get("data_b64", "")
+        try:
+            import base64
+            raw = base64.b64decode(b64)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "wb") as f:
+                f.write(raw)
+            return {"success": True, "message": f"File {os.path.basename(path)} saved ({len(raw)} bytes)", "path": path}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    elif action == "read_binary":
+        path = os.path.abspath(data.get("path", ""))
+        try:
+            import base64
+            with open(path, "rb") as f:
+                raw = f.read()
+            return {"success": True, "data_b64": base64.b64encode(raw).decode("ascii"), "filename": os.path.basename(path)}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    elif action == "file_extract":
+        src = os.path.abspath(data.get("path", ""))
+        dest = os.path.abspath(data.get("destination")) if data.get("destination") else os.path.dirname(src)
+        try:
+            os.makedirs(dest, exist_ok=True)
+            lower_src = src.lower()
+            if lower_src.endswith(".zip"):
+                cmd = f"unzip -o -q '{src}' -d '{dest}'"
+            elif lower_src.endswith((".tar.gz", ".tgz")):
+                cmd = f"tar -xzf '{src}' -C '{dest}'"
+            elif lower_src.endswith((".tar.bz2", ".tbz2")):
+                cmd = f"tar -xjf '{src}' -C '{dest}'"
+            elif lower_src.endswith((".tar.xz", ".txz")):
+                cmd = f"tar -xJf '{src}' -C '{dest}'"
+            elif lower_src.endswith(".tar"):
+                cmd = f"tar -xf '{src}' -C '{dest}'"
+            elif lower_src.endswith(".rar"):
+                cmd = f"unrar x -o+ -inul '{src}' '{dest}/'"
+            elif lower_src.endswith(".7z"):
+                cmd = f"7z x -y -o'{dest}' '{src}'"
+            else:
+                return {"success": False, "error": "Unsupported archive format"}
+            res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
+            return {
+                "success": res.returncode == 0,
+                "message": f"Extracted to {dest}" if res.returncode == 0 else (res.stderr.strip() or "Extract failed"),
+                "destination": dest
+            }
         except Exception as e:
             return {"success": False, "error": str(e)}
 

@@ -650,9 +650,25 @@
               <h3 class="text-2xl font-editorial">File Browser & Editor</h3>
               <p class="text-xs text-smoke font-mono">Jelajahi direktori dan edit file konfigurasi server ini secara live.</p>
             </div>
-            <div class="flex items-center gap-2">
-              <span id="currentDirPath" class="text-xs font-mono text-smoke truncate max-w-[200px]">/root</span>
-              <button onclick="loadDirectory('/root')" class="pill-btn-ghost text-xs py-1.5 px-3 flex-shrink-0">Home</button>
+            <div class="flex items-center gap-2 flex-wrap">
+              <div class="flex items-center gap-1.5 bg-black/[0.03] dark:bg-white/[0.04] px-3 py-1.5 rounded-full border border-black/[0.04] dark:border-white/[0.06]">
+                <i class="fa-solid fa-folder-open text-sky text-xs"></i>
+                <input type="text" id="pathInputBar" class="bg-transparent text-xs font-mono text-offblack dark:text-parchment focus:outline-none w-36 sm:w-56" value="/root" onkeydown="if(event.key==='Enter') loadDirectory(this.value)">
+                <button onclick="loadDirectory(document.getElementById('pathInputBar').value)" class="text-smoke hover:text-lake transition text-[11px]" title="Buka Direktori">
+                  <i class="fa-solid fa-arrow-right"></i>
+                </button>
+              </div>
+              <button onclick="loadDirectory('/root')" class="pill-btn-ghost text-xs py-1.5 px-3 flex-shrink-0" title="Ke direktori /root">
+                <i class="fa-solid fa-house text-[10px]"></i>
+                <span class="hidden sm:inline">Home</span>
+              </button>
+              <button onclick="openUploadModal()" class="pill-btn-lake text-xs py-1.5 px-3 flex-shrink-0" title="Upload file ke direktori ini">
+                <i class="fa-solid fa-cloud-arrow-up text-[11px]"></i>
+                <span>Upload</span>
+              </button>
+              <button onclick="loadDirectory(currentPath)" class="pill-btn-ghost text-xs py-1.5 px-2.5 flex-shrink-0" title="Refresh daftar file">
+                <i class="fa-solid fa-arrows-rotate text-[10px]"></i>
+              </button>
             </div>
           </div>
 
@@ -816,6 +832,89 @@
         <button onclick="saveCurrentFile()" class="pill-btn-lake text-xs">
           <span>Save File ▸</span>
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: FILE UPLOAD -->
+  <div id="modalFileUpload" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-white dark:bg-darkCard rounded-[28px] sm:rounded-[36px] p-5 sm:p-7 space-y-5 shadow-2xl relative border border-black/[0.06] dark:border-white/[0.08]">
+      <button onclick="closeModal('modalFileUpload')" class="absolute top-5 right-5 text-smoke hover:text-offblack dark:hover:text-white p-1">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <div>
+        <div class="pill-tag bg-sky/20 text-lake dark:text-sky text-[10px]">FILE MANAGEMENT</div>
+        <h3 class="text-2xl sm:text-3xl font-editorial mt-2">Upload File</h3>
+        <p class="text-xs text-smoke font-mono mt-1">Unggah file langsung ke direktori aktif server.</p>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="text-xs uppercase text-smoke font-mono block mb-1">Target Direktori</label>
+          <input type="text" id="uploadTargetDirInput" class="w-full text-xs bg-black/[0.02] dark:bg-darkCanvas border border-black/[0.08] dark:border-white/[0.08] rounded-xl px-3.5 py-2 font-mono text-offblack dark:text-parchment focus:outline-none" readonly>
+        </div>
+
+        <div>
+          <label class="text-xs uppercase text-smoke font-mono block mb-1">Pilih File</label>
+          <input type="file" id="fileUploadChooser" class="w-full text-xs font-mono text-smoke file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-mono file:bg-lake file:text-white hover:file:opacity-90 cursor-pointer">
+        </div>
+
+        <div id="uploadProgressBarContainer" class="hidden space-y-1">
+          <div class="w-full bg-black/[0.05] dark:bg-white/[0.05] rounded-full h-2 overflow-hidden">
+            <div id="uploadProgressBar" class="bg-lake h-2 rounded-full transition-all duration-200" style="width: 0%"></div>
+          </div>
+          <div class="text-[10px] font-mono text-smoke text-right" id="uploadProgressText">0%</div>
+        </div>
+
+        <div id="uploadStatusMsg" class="text-xs font-mono hidden"></div>
+
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button onclick="closeModal('modalFileUpload')" class="pill-btn-ghost text-xs">Batal</button>
+          <button onclick="submitFileUpload()" id="btnSubmitUpload" class="pill-btn-lake text-xs">
+            <i class="fa-solid fa-cloud-arrow-up text-[10px]"></i>
+            <span>Upload Sekarang</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: FILE EXTRACT -->
+  <div id="modalFileExtract" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-white dark:bg-darkCard rounded-[28px] sm:rounded-[36px] p-5 sm:p-7 space-y-5 shadow-2xl relative border border-black/[0.06] dark:border-white/[0.08]">
+      <button onclick="closeModal('modalFileExtract')" class="absolute top-5 right-5 text-smoke hover:text-offblack dark:hover:text-white p-1">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <div>
+        <div class="pill-tag bg-coral/20 text-coral text-[10px]">ARCHIVE UTILITY</div>
+        <h3 class="text-2xl sm:text-3xl font-editorial mt-2">Ekstrak Arsip</h3>
+        <p class="text-xs text-smoke font-mono mt-1">Ekstrak arsip (.zip, .tar.gz, .rar, .7z) langsung di server.</p>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="text-xs uppercase text-smoke font-mono block mb-1">File Arsip</label>
+          <div id="extractArchiveName" class="text-xs font-mono text-lake dark:text-sky font-semibold break-all bg-black/[0.03] dark:bg-white/[0.04] p-2.5 rounded-xl border border-black/[0.04] dark:border-white/[0.06]"></div>
+          <input type="hidden" id="extractArchivePath">
+        </div>
+
+        <div>
+          <label class="text-xs uppercase text-smoke font-mono block mb-1">Folder Tujuan Ekstraksi</label>
+          <input type="text" id="extractDestDirInput" class="w-full text-xs bg-black/[0.02] dark:bg-darkCanvas border border-black/[0.08] dark:border-white/[0.08] rounded-xl px-3.5 py-2 font-mono text-offblack dark:text-parchment focus:outline-none focus:border-lake">
+          <span class="text-[10px] text-smoke font-mono mt-0.5 block">Default: folder tempat arsip berada.</span>
+        </div>
+
+        <div id="extractStatusMsg" class="text-xs font-mono hidden"></div>
+
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button onclick="closeModal('modalFileExtract')" class="pill-btn-ghost text-xs">Batal</button>
+          <button onclick="submitFileExtract()" id="btnSubmitExtract" class="pill-btn-lake text-xs">
+            <i class="fa-solid fa-box-open text-[10px]"></i>
+            <span>Ekstrak Sekarang</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -1463,7 +1562,8 @@
     async function loadDirectory(path) {
       if (!selectedNodeId) return;
       currentPath = path;
-      document.getElementById('currentDirPath').textContent = path;
+      const pathInput = document.getElementById('pathInputBar');
+      if (pathInput) pathInput.value = path;
       const tbody = document.getElementById('filesTableBody');
       tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-smoke">Scanning directory...</td></tr>';
       try {
@@ -1489,23 +1589,190 @@
         entries.forEach(e => {
           const tr = document.createElement('tr');
           tr.className = 'hover:bg-black/[0.02] dark:hover:bg-white/[0.02]';
+
+          let iconClass = 'fa-file-lines text-smoke';
+          const isArchive = /\.(zip|tar\.gz|tgz|tar\.bz2|tbz2|tar\.xz|txz|tar|rar|7z)$/i.test(e.name);
+          const isEditable = /\.(txt|py|sh|json|html|css|js|conf|ini|yml|yaml|service|env|md|log|sql|xml|csv)$/i.test(e.name) || (!e.is_dir && e.size < 1048576);
+
+          if (e.is_dir) {
+            iconClass = 'fa-folder text-sky';
+          } else if (isArchive) {
+            iconClass = 'fa-file-zipper text-gold';
+          } else if (/\.(py|sh|json|html|css|js|sql|yml|yaml)$/i.test(e.name)) {
+            iconClass = 'fa-file-code text-lake';
+          }
+
+          let actionButtons = '';
+          if (e.is_dir) {
+            actionButtons = `<button onclick="loadDirectory('${e.path}')" class="pill-btn-ghost text-[10px] py-0.5 px-2">Open</button>`;
+          } else {
+            actionButtons = `
+              <div class="inline-flex items-center gap-1.5 justify-end">
+                <a href="/api/nodes/${selectedNodeId}/file-download?path=${encodeURIComponent(e.path)}" download class="pill-btn-ghost text-[10px] py-0.5 px-2 text-sky hover:text-lake" title="Download File">
+                  <i class="fa-solid fa-download"></i>
+                </a>
+                ${isArchive ? `<button onclick="openExtractModal('${e.path}', '${e.name}')" class="pill-btn-ghost text-[10px] py-0.5 px-2 text-coral hover:border-coral" title="Ekstrak Arsip"><i class="fa-solid fa-box-open mr-1"></i>Extract</button>` : ''}
+                ${isEditable ? `<button onclick="openFileEditor('${e.path}')" class="pill-btn-ghost text-[10px] py-0.5 px-2 text-lake" title="Edit File"><i class="fa-solid fa-pen-to-square mr-1"></i>Edit</button>` : ''}
+              </div>
+            `;
+          }
+
           tr.innerHTML = `
-            <td class="py-2 px-4 font-medium text-offblack dark:text-parchment flex items-center gap-2 cursor-pointer rounded-l-xl" onclick="${e.is_dir ? `loadDirectory('${e.path}')` : `openFileEditor('${e.path}')`}">
-              <i class="fa-solid ${e.is_dir ? 'fa-folder text-sky' : 'fa-file-lines text-smoke'}"></i>
+            <td class="py-2 px-4 font-medium text-offblack dark:text-parchment flex items-center gap-2 cursor-pointer rounded-l-xl" onclick="${e.is_dir ? `loadDirectory('${e.path}')` : (isEditable ? `openFileEditor('${e.path}')` : '')}">
+              <i class="fa-solid ${iconClass}"></i>
               <span class="truncate max-w-[200px] sm:max-w-md">${e.name}</span>
             </td>
             <td class="py-2 px-4 text-smoke">${e.is_dir ? '-' : formatBytes(e.size)}</td>
             <td class="py-2 px-4 text-smoke font-mono">${e.mode}</td>
             <td class="py-2 px-4 text-right rounded-r-xl">
-              ${e.is_dir 
-                ? `<button onclick="loadDirectory('${e.path}')" class="pill-btn-ghost text-[10px] py-0.5 px-2">Open</button>`
-                : `<button onclick="openFileEditor('${e.path}')" class="pill-btn-ghost text-[10px] py-0.5 px-2 text-lake">Edit</button>`}
+              ${actionButtons}
             </td>
           `;
           tbody.appendChild(tr);
         });
       } catch (e) {
         tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-coral">Failed to read directory.</td></tr>';
+      }
+    }
+
+    function openUploadModal() {
+      if (!selectedNodeId) return;
+      document.getElementById('uploadTargetDirInput').value = currentPath || '/root';
+      document.getElementById('fileUploadChooser').value = '';
+      document.getElementById('uploadProgressBarContainer').classList.add('hidden');
+      document.getElementById('uploadProgressBar').style.width = '0%';
+      document.getElementById('uploadStatusMsg').classList.add('hidden');
+      document.getElementById('uploadStatusMsg').textContent = '';
+      openModal('modalFileUpload');
+    }
+
+    async function submitFileUpload() {
+      if (!selectedNodeId) return;
+      const fileInput = document.getElementById('fileUploadChooser');
+      if (!fileInput.files || fileInput.files.length === 0) {
+        alert('Silakan pilih file terlebih dahulu!');
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const targetDir = document.getElementById('uploadTargetDirInput').value.trim() || currentPath;
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('target_dir', targetDir);
+
+      const btn = document.getElementById('btnSubmitUpload');
+      const statusEl = document.getElementById('uploadStatusMsg');
+      const progressContainer = document.getElementById('uploadProgressBarContainer');
+      const progressBar = document.getElementById('uploadProgressBar');
+      const progressText = document.getElementById('uploadProgressText');
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Mengunggah...';
+      progressContainer.classList.remove('hidden');
+      statusEl.classList.remove('hidden');
+      statusEl.className = 'text-xs font-mono text-smoke';
+      statusEl.textContent = `Mengunggah ${file.name}...`;
+
+      try {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `/api/nodes/${selectedNodeId}/file-upload`);
+
+        xhr.upload.onprogress = (evt) => {
+          if (evt.lengthComputable) {
+            const percent = Math.round((evt.loaded / evt.total) * 100);
+            progressBar.style.width = `${percent}%`;
+            progressText.textContent = `${percent}%`;
+          }
+        };
+
+        xhr.onload = () => {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up text-[10px]"></i> <span>Upload Sekarang</span>';
+          try {
+            const res = JSON.parse(xhr.responseText);
+            if (xhr.status === 200 && res.success) {
+              statusEl.className = 'text-xs font-mono text-mint';
+              statusEl.textContent = `Berhasil: ${res.message}`;
+              setTimeout(() => {
+                closeModal('modalFileUpload');
+                loadDirectory(currentPath);
+              }, 800);
+            } else {
+              statusEl.className = 'text-xs font-mono text-coral';
+              statusEl.textContent = `Gagal: ${res.error || res.detail || 'Terjadi kesalahan'}`;
+            }
+          } catch (err) {
+            statusEl.className = 'text-xs font-mono text-coral';
+            statusEl.textContent = 'Gagal membaca respon server.';
+          }
+        };
+
+        xhr.onerror = () => {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up text-[10px]"></i> <span>Upload Sekarang</span>';
+          statusEl.className = 'text-xs font-mono text-coral';
+          statusEl.textContent = 'Gagal mengunggah: Terjadi kesalahan jaringan.';
+        };
+
+        xhr.send(formData);
+      } catch (e) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up text-[10px]"></i> <span>Upload Sekarang</span>';
+        statusEl.className = 'text-xs font-mono text-coral';
+        statusEl.textContent = `Error: ${e.message}`;
+      }
+    }
+
+    function openExtractModal(path, name) {
+      if (!selectedNodeId) return;
+      document.getElementById('extractArchivePath').value = path;
+      document.getElementById('extractArchiveName').textContent = name;
+      const parentDir = path.substring(0, path.lastIndexOf('/')) || '/';
+      document.getElementById('extractDestDirInput').value = parentDir;
+      document.getElementById('extractStatusMsg').classList.add('hidden');
+      document.getElementById('extractStatusMsg').textContent = '';
+      openModal('modalFileExtract');
+    }
+
+    async function submitFileExtract() {
+      if (!selectedNodeId) return;
+      const path = document.getElementById('extractArchivePath').value;
+      const destination = document.getElementById('extractDestDirInput').value.trim();
+      const btn = document.getElementById('btnSubmitExtract');
+      const statusEl = document.getElementById('extractStatusMsg');
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Mengekstrak...';
+      statusEl.classList.remove('hidden');
+      statusEl.className = 'text-xs font-mono text-smoke';
+      statusEl.textContent = 'Proses ekstraksi sedang berlangsung di server...';
+
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/file-extract`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({path, destination})
+        });
+        const data = await res.json();
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-box-open text-[10px]"></i> <span>Ekstrak Sekarang</span>';
+
+        if (data.success) {
+          statusEl.className = 'text-xs font-mono text-mint';
+          statusEl.textContent = data.message;
+          setTimeout(() => {
+            closeModal('modalFileExtract');
+            loadDirectory(currentPath);
+          }, 1000);
+        } else {
+          statusEl.className = 'text-xs font-mono text-coral';
+          statusEl.textContent = `Gagal: ${data.error || data.detail || 'Ekstraksi gagal'}`;
+        }
+      } catch (e) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-box-open text-[10px]"></i> <span>Ekstrak Sekarang</span>';
+        statusEl.className = 'text-xs font-mono text-coral';
+        statusEl.textContent = `Network error: ${e.message}`;
       }
     }
 
