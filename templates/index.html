@@ -813,7 +813,7 @@
   </div>
 
   <!-- MODAL: FILE EDITOR -->
-  <div id="modalFileEditor" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <div id="modalFileEditor" onclick="if(event.target===this) closeModal('modalFileEditor')" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="w-full max-w-4xl bg-white dark:bg-darkCard rounded-[28px] sm:rounded-[36px] p-5 sm:p-7 space-y-4 shadow-2xl relative border border-black/[0.06] dark:border-white/[0.08] max-h-[90vh] flex flex-col">
       <div class="flex items-center justify-between pb-3 border-b border-black/[0.04] dark:border-white/[0.06]">
         <div class="truncate mr-4">
@@ -829,9 +829,12 @@
 
       <div class="flex items-center justify-between pt-2">
         <span id="editorSaveStatus" class="text-xs font-mono text-smoke">Backup created before save.</span>
-        <button onclick="saveCurrentFile()" class="pill-btn-lake text-xs">
-          <span>Save File ▸</span>
-        </button>
+        <div class="flex items-center gap-2">
+          <button onclick="closeModal('modalFileEditor')" class="pill-btn-ghost text-xs">Tutup</button>
+          <button onclick="saveCurrentFile()" class="pill-btn-lake text-xs">
+            <span>Save File ▸</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -1591,8 +1594,9 @@
           tr.className = 'hover:bg-black/[0.02] dark:hover:bg-white/[0.02]';
 
           let iconClass = 'fa-file-lines text-smoke';
-          const isArchive = /\.(zip|tar\.gz|tgz|tar\.bz2|tbz2|tar\.xz|txz|tar|rar|7z)$/i.test(e.name);
-          const isEditable = /\.(txt|py|sh|json|html|css|js|conf|ini|yml|yaml|service|env|md|log|sql|xml|csv)$/i.test(e.name) || (!e.is_dir && e.size < 1048576);
+          const isArchive = /\.(zip|tar\.gz|tgz|tar\.bz2|tbz2|tar\.xz|txz|tar|rar|7z|gz|bz2|xz)$/i.test(e.name);
+          const isKnownBinary = /\.(gz|bz2|xz|zip|rar|7z|tar|ex5|ex4|exe|bin|so|dll|iso|png|jpg|jpeg|gif|webp|ico|pdf|docx|xlsx|pptx|mp4|mp3|pyc|db|sqlite|deb|rpm)$/i.test(e.name);
+          const isEditable = !isKnownBinary && (/\.(txt|py|sh|json|html|css|js|conf|ini|yml|yaml|service|env|md|log|sql|xml|csv|cfg|properties|bashrc|profile|gitignore)$/i.test(e.name) || (!e.is_dir && e.size < 512000));
 
           if (e.is_dir) {
             iconClass = 'fa-folder text-sky';
@@ -1600,6 +1604,17 @@
             iconClass = 'fa-file-zipper text-gold';
           } else if (/\.(py|sh|json|html|css|js|sql|yml|yaml)$/i.test(e.name)) {
             iconClass = 'fa-file-code text-lake';
+          }
+
+          let clickHandler = '';
+          if (e.is_dir) {
+            clickHandler = `loadDirectory('${e.path}')`;
+          } else if (isArchive) {
+            clickHandler = `openExtractModal('${e.path}', '${e.name}')`;
+          } else if (isEditable) {
+            clickHandler = `openFileEditor('${e.path}')`;
+          } else {
+            clickHandler = `window.location.href='/api/nodes/${selectedNodeId}/file-download?path=${encodeURIComponent(e.path)}'`;
           }
 
           let actionButtons = '';
@@ -1618,7 +1633,7 @@
           }
 
           tr.innerHTML = `
-            <td class="py-2 px-4 font-medium text-offblack dark:text-parchment flex items-center gap-2 cursor-pointer rounded-l-xl" onclick="${e.is_dir ? `loadDirectory('${e.path}')` : (isEditable ? `openFileEditor('${e.path}')` : '')}">
+            <td class="py-2 px-4 font-medium text-offblack dark:text-parchment flex items-center gap-2 cursor-pointer rounded-l-xl" onclick="${clickHandler}">
               <i class="fa-solid ${iconClass}"></i>
               <span class="truncate max-w-[200px] sm:max-w-md">${e.name}</span>
             </td>
@@ -1779,14 +1794,19 @@
     async function openFileEditor(path) {
       if (!selectedNodeId) return;
       document.getElementById('editorFilePath').textContent = path;
-      document.getElementById('editorFileText').value = 'Loading file content...';
+      document.getElementById('editorFileText').value = 'Memuat isi file...';
+      document.getElementById('editorSaveStatus').textContent = 'Backup dibuat otomatis sebelum menyimpan.';
       openModal('modalFileEditor');
       try {
         const res = await fetch(`/api/nodes/${selectedNodeId}/file-content?path=${encodeURIComponent(path)}`);
         const data = await res.json();
+        if (!res.ok || data.error || data.detail) {
+          document.getElementById('editorFileText').value = `[!] Tidak dapat membuka file:\n\n${data.error || data.detail || 'Format file tidak didukung sebagai teks.'}`;
+          return;
+        }
         document.getElementById('editorFileText').value = data.content || '';
       } catch (e) {
-        document.getElementById('editorFileText').value = 'Failed to load file.';
+        document.getElementById('editorFileText').value = `[!] Gagal memuat file: ${e.message}`;
       }
     }
 
@@ -2041,6 +2061,12 @@
       if (savedNode && nodesList.some(n => n.node_id === savedNode)) {
         selectServer(savedNode);
       }
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          ['modalFileEditor', 'modalFileUpload', 'modalFileExtract', 'modalRenameNode', 'modalSettings', 'modalAddNode'].forEach(id => closeModal(id));
+        }
+      });
     });
   </script>
 </body>

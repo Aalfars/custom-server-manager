@@ -3,6 +3,30 @@ import shutil
 import subprocess
 from typing import Optional, Dict, List
 
+BINARY_EXTENSIONS = {
+    ".gz", ".tar", ".tgz", ".bz2", ".tbz2", ".xz", ".txz", ".zip", ".rar", ".7z",
+    ".ex5", ".ex4", ".exe", ".bin", ".so", ".dll", ".iso", ".img", ".deb", ".rpm",
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".svgz", ".bmp", ".tiff",
+    ".pdf", ".docx", ".xlsx", ".pptx", ".mp4", ".mp3", ".wav", ".avi", ".mkv",
+    ".pyc", ".db", ".sqlite", ".sqlite3", ".o", ".a"
+}
+
+def is_binary_file(filepath: str) -> bool:
+    lower_path = filepath.lower()
+    _, ext = os.path.splitext(lower_path)
+    if ext in BINARY_EXTENSIONS:
+        return True
+    if lower_path.endswith((".tar.gz", ".tar.bz2", ".tar.xz")):
+        return True
+    try:
+        with open(filepath, "rb") as f:
+            chunk = f.read(8192)
+            if b"\x00" in chunk:
+                return True
+    except Exception:
+        pass
+    return False
+
 def list_directory(path: str = "/root", limit: int = 200) -> Dict:
     target = os.path.abspath(path)
     if not os.path.exists(target):
@@ -36,8 +60,10 @@ def read_file(path: str, max_size: int = 2 * 1024 * 1024) -> Dict:
     target = os.path.abspath(path)
     if not os.path.isfile(target):
         raise FileNotFoundError("File not found")
+    if is_binary_file(target):
+        raise ValueError("File biner / arsip tidak dapat dibuka di text editor. Silakan gunakan tombol Extract atau Download.")
     if os.path.getsize(target) > max_size:
-        raise ValueError("File too large to open via web (>2MB)")
+        raise ValueError("File terlalu besar untuk dibuka di web (>2MB)")
 
     with open(target, "r", encoding="utf-8", errors="replace") as f:
         content = f.read()
@@ -99,8 +125,23 @@ def extract_archive(archive_path: str, destination: Optional[str] = None) -> Dic
         cmd = ["unrar", "x", "-o+", "-inul", src, f"{dest}/"]
     elif lower_src.endswith(".7z"):
         cmd = ["7z", "x", "-y", f"-o{dest}", src]
+    elif lower_src.endswith(".gz"):
+        target_in_dest = os.path.join(dest, os.path.basename(src))
+        if os.path.abspath(target_in_dest) != src:
+            shutil.copy2(src, target_in_dest)
+        cmd = ["gunzip", "-f", "-k", target_in_dest]
+    elif lower_src.endswith(".bz2"):
+        target_in_dest = os.path.join(dest, os.path.basename(src))
+        if os.path.abspath(target_in_dest) != src:
+            shutil.copy2(src, target_in_dest)
+        cmd = ["bunzip2", "-f", "-k", target_in_dest]
+    elif lower_src.endswith(".xz"):
+        target_in_dest = os.path.join(dest, os.path.basename(src))
+        if os.path.abspath(target_in_dest) != src:
+            shutil.copy2(src, target_in_dest)
+        cmd = ["unxz", "-f", "-k", target_in_dest]
     else:
-        raise ValueError("Unsupported archive format. Supported formats: .zip, .tar.gz, .tgz, .tar.bz2, .tar.xz, .tar, .rar, .7z")
+        raise ValueError("Unsupported archive format. Supported formats: .zip, .tar.gz, .tgz, .tar.bz2, .tar.xz, .tar, .rar, .7z, .gz, .bz2, .xz")
 
     res = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if res.returncode != 0:

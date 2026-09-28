@@ -290,6 +290,24 @@ async def handle_rpc(data: dict) -> dict:
                 cmd = f"unrar x -o+ -inul '{src}' '{dest}/'"
             elif lower_src.endswith(".7z"):
                 cmd = f"7z x -y -o'{dest}' '{src}'"
+            elif lower_src.endswith(".gz"):
+                import shutil
+                target_in_dest = os.path.join(dest, os.path.basename(src))
+                if os.path.abspath(target_in_dest) != src:
+                    shutil.copy2(src, target_in_dest)
+                cmd = f"gunzip -f -k '{target_in_dest}'"
+            elif lower_src.endswith(".bz2"):
+                import shutil
+                target_in_dest = os.path.join(dest, os.path.basename(src))
+                if os.path.abspath(target_in_dest) != src:
+                    shutil.copy2(src, target_in_dest)
+                cmd = f"bunzip2 -f -k '{target_in_dest}'"
+            elif lower_src.endswith(".xz"):
+                import shutil
+                target_in_dest = os.path.join(dest, os.path.basename(src))
+                if os.path.abspath(target_in_dest) != src:
+                    shutil.copy2(src, target_in_dest)
+                cmd = f"unxz -f -k '{target_in_dest}'"
             else:
                 return {"success": False, "error": "Unsupported archive format"}
             res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
