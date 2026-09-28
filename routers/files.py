@@ -8,13 +8,14 @@ from pydantic import BaseModel
 
 from core.config import connected_agents, send_agent_rpc
 from core.database import log_audit
-from core.security import require_auth
+from core.security import require_auth, get_client_ip
 from services.file_manager import (
     list_directory,
     read_file,
     save_file,
     upload_file,
-    extract_archive
+    extract_archive,
+    compress_files
 )
 
 router = APIRouter(prefix="/api/nodes", tags=["files"])
@@ -69,7 +70,7 @@ async def post_file_save(node_id: str, payload: SaveFileRequest, request: Reques
     if node_id == "local-host":
         try:
             res = save_file(payload.path, payload.content)
-            log_audit(node_id, "SAVE_FILE", f"Edited {payload.path}")
+            log_audit(node_id, "SAVE_FILE", f"Edited {payload.path}", "SUCCESS", get_client_ip(request))
             return res
         except Exception as e:
             return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
@@ -77,7 +78,9 @@ async def post_file_save(node_id: str, payload: SaveFileRequest, request: Reques
         agent = connected_agents.get(node_id)
         if not agent:
             raise HTTPException(status_code=404, detail="Agent is offline")
-        return await send_agent_rpc(node_id, {"action": "save_file", "path": payload.path, "content": payload.content})
+        res = await send_agent_rpc(node_id, {"action": "save_file", "path": payload.path, "content": payload.content})
+        log_audit(node_id, "REMOTE_SAVE_FILE", f"Edited {payload.path}", "SUCCESS", get_client_ip(request))
+        return res
 
 # File Upload Feature
 @router.post("/{node_id}/file-upload")
@@ -91,10 +94,11 @@ async def post_file_upload(
     try:
         content = await file.read()
         filename = file.filename or "uploaded_file"
+        client_ip = get_client_ip(request)
 
         if node_id == "local-host":
             res = upload_file(target_dir=target_dir, filename=filename, content=content)
-            log_audit(node_id, "FILE_UPLOAD", f"Uploaded {filename} to {target_dir} ({len(content)} bytes)")
+            log_audit(node_id, "FILE_UPLOAD", f"Uploaded {filename} to {target_dir} ({len(content)} bytes)", "SUCCESS", client_ip)
             return res
         else:
             agent = connected_agents.get(node_id)
@@ -108,7 +112,7 @@ async def post_file_upload(
                 "path": dest_path,
                 "data_b64": b64_data
             }, timeout=60.0)
-            log_audit(node_id, "REMOTE_FILE_UPLOAD", f"Uploaded {filename} to {dest_path}")
+            log_audit(node_id, "REMOTE_FILE_UPLOAD", f"Uploaded {filename} to {dest_path}", "SUCCESS", client_ip)
             return resp
     except Exception as e:
         return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
@@ -117,13 +121,14 @@ async def post_file_upload(
 @router.get("/{node_id}/file-download")
 async def get_file_download(node_id: str, path: str, request: Request):
     require_auth(request)
+    client_ip = get_client_ip(request)
     if node_id == "local-host":
         target = os.path.abspath(path)
         if not os.path.isfile(target):
             raise HTTPException(status_code=404, detail="File not found")
 
         filename = os.path.basename(target)
-        log_audit(node_id, "FILE_DOWNLOAD", f"Downloaded {target}")
+        log_audit(node_id, "FILE_DOWNLOAD", f"Downloaded {target}", "SUCCESS", client_ip)
         return FileResponse(
             path=target,
             filename=filename,
@@ -141,7 +146,7 @@ async def get_file_download(node_id: str, path: str, request: Request):
         b64_data = resp.get("data_b64", "")
         raw_bytes = base64.b64decode(b64_data)
         filename = os.path.basename(path)
-        log_audit(node_id, "REMOTE_FILE_DOWNLOAD", f"Downloaded {path}")
+        log_audit(node_id, "REMOTE_FILE_DOWNLOAD", f"Downloaded {path}", "SUCCESS", client_ip)
         return Response(
             content=raw_bytes,
             media_type="application/octet-stream",
@@ -177,5 +182,51 @@ async def post_file_extract(node_id: str, payload: ExtractArchiveRequest, reques
             "path": archive_path,
             "destination": dest_dir
         }, timeout=120.0)
-        log_audit(node_id, "REMOTE_FILE_EXTRACT", f"Extracted {archive_path}")
+        log_audit(node_id, "REMOTE_FILE_EXTRACT", f"Extracted {archive_path}", "SUCCESS", get_client_ip(request))
+        return resp
+
+class CompressArchiveRequest(BaseModel):
+    directory: str
+    items: list[str]
+    archive_name: str
+    format: str = "zip"
+
+@router.post("/{node_id}/file-compress")
+async def post_file_compress(node_id: str, payload: CompressArchiveRequest, request: Request):
+    require_auth(request)
+    client_ip = get_client_ip(request)
+    base_dir = payload.directory.strip()
+    items = payload.items
+    archive_name = payload.archive_name.strip()
+    fmt = payload.format.strip()
+
+    if not base_dir:
+        raise HTTPException(status_code=400, detail="Direktori tidak boleh kosong")
+    if not items:
+        raise HTTPException(status_code=400, detail="Pilih setidaknya satu file atau folder untuk dikompres")
+    if not archive_name:
+        archive_name = "archive"
+
+    if node_id == "local-host":
+        try:
+            res = compress_files(base_dir, items, archive_name, format=fmt)
+            log_audit(node_id, "FILE_COMPRESS", f"Compressed {len(items)} items to {res['archive_name']}", "SUCCESS", client_ip)
+            return res
+        except (FileNotFoundError, NotADirectoryError, ValueError) as ve:
+            return JSONResponse(status_code=400, content={"success": False, "error": str(ve)})
+        except Exception as e:
+            return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+    else:
+        agent = connected_agents.get(node_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent is offline")
+
+        resp = await send_agent_rpc(node_id, {
+            "action": "file_compress",
+            "directory": base_dir,
+            "items": items,
+            "archive_name": archive_name,
+            "format": fmt
+        }, timeout=120.0)
+        log_audit(node_id, "REMOTE_FILE_COMPRESS", f"Compressed {len(items)} items in {base_dir}", "SUCCESS", client_ip)
         return resp

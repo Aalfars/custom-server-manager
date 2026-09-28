@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
 
 from core.config import connected_agents, send_agent_rpc
-from core.database import get_db, log_audit
+from core.database import get_db, log_audit, get_telemetry_history
 from core.security import require_auth
 from services.telemetry import get_local_telemetry
 
@@ -182,3 +182,20 @@ async def clean_node_cache(node_id: str, request: Request):
             if "openvz" in virt_info or "lxc" in virt_info or "Permission denied" in stderr_info:
                 return {"success": True, "message": f"Sync selesai. Satellite ({virt_info or 'Container'}) mengandalkan manajemen memory hypervisor host."}
             return {"success": False, "message": f"Gagal membersihkan cache: {stderr_info}"}
+
+@router.get("/{node_id}/telemetry/history")
+async def get_node_telemetry_history(node_id: str, request: Request, range: str = "1h"):
+    require_auth(request)
+    duration_map = {
+        "1h": 3600,
+        "6h": 21600,
+        "24h": 86400
+    }
+    duration = duration_map.get(range, 3600)
+    max_pts = 120 if range == "1h" else (180 if range == "6h" else 240)
+    history = get_telemetry_history(node_id, duration_seconds=duration, max_points=max_pts)
+    return {
+        "node_id": node_id,
+        "range": range,
+        "points": history
+    }

@@ -30,9 +30,29 @@ def init_db():
         node_id TEXT,
         action TEXT,
         detail TEXT,
-        status TEXT
+        status TEXT,
+        ip TEXT DEFAULT '-'
     )
     """)
+    # Add ip column to audit_logs if older schema exists
+    try:
+        c.execute("ALTER TABLE audit_logs ADD COLUMN ip TEXT DEFAULT '-'")
+    except Exception:
+        pass
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS telemetry_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp INTEGER,
+        node_id TEXT,
+        cpu_percent REAL,
+        ram_percent REAL,
+        disk_percent REAL,
+        rx_kbps REAL,
+        tx_kbps REAL
+    )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_history ON telemetry_history(node_id, timestamp)")
     # Default settings
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('pin', '654321')")
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('telegram_bot_token', '')")
@@ -69,17 +89,65 @@ def set_setting(key: str, value: str):
     db.commit()
     db.close()
 
-def log_audit(node_id: str, action: str, detail: str, status: str = "SUCCESS"):
+def log_audit(node_id: str, action: str, detail: str, status: str = "SUCCESS", ip: str = "-"):
     try:
         db = get_db()
         db.execute("""
-        INSERT INTO audit_logs (timestamp, node_id, action, detail, status)
-        VALUES (?, ?, ?, ?, ?)
-        """, (int(time.time()), node_id, action, detail[:500], status))
+        INSERT INTO audit_logs (timestamp, node_id, action, detail, status, ip)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """, (int(time.time()), node_id, action, detail[:500], status, ip[:64]))
         db.commit()
         db.close()
     except Exception:
         pass
+
+def record_telemetry_history(node_id: str, cpu_percent: float, ram_percent: float, disk_percent: float, rx_kbps: float, tx_kbps: float):
+    try:
+        db = get_db()
+        db.execute("""
+        INSERT INTO telemetry_history (timestamp, node_id, cpu_percent, ram_percent, disk_percent, rx_kbps, tx_kbps)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (int(time.time()), node_id, round(cpu_percent, 1), round(ram_percent, 1), round(disk_percent, 1), round(rx_kbps, 1), round(tx_kbps, 1)))
+        db.commit()
+        db.close()
+    except Exception:
+        pass
+
+def cleanup_old_telemetry_history(max_age_seconds: int = 86400):
+    try:
+        cutoff = int(time.time()) - max_age_seconds
+        db = get_db()
+        db.execute("DELETE FROM telemetry_history WHERE timestamp < ?", (cutoff,))
+        db.commit()
+        db.close()
+    except Exception:
+        pass
+
+def get_telemetry_history(node_id: str, duration_seconds: int = 3600, max_points: int = 120):
+    try:
+        start_time = int(time.time()) - duration_seconds
+        db = get_db()
+        rows = db.execute("""
+        SELECT timestamp, cpu_percent, ram_percent, disk_percent, rx_kbps, tx_kbps
+        FROM telemetry_history
+        WHERE node_id = ? AND timestamp >= ?
+        ORDER BY timestamp ASC
+        """, (node_id, start_time)).fetchall()
+        db.close()
+
+        total = len(rows)
+        if total <= max_points or total == 0:
+            return [dict(r) for r in rows]
+
+        # Downsample evenly to max_points
+        step = total / max_points
+        sampled = []
+        for i in range(max_points):
+            idx = int(i * step)
+            sampled.append(dict(rows[idx]))
+        return sampled
+    except Exception:
+        return []
 
 def get_node_name(node_id: str, default: str = "") -> str:
     try:

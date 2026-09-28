@@ -319,6 +319,54 @@ async def handle_rpc(data: dict) -> dict:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    elif action == "file_compress":
+        import zipfile
+        import tarfile
+        base_dir = data.get("directory", "/root")
+        items = data.get("items", [])
+        archive_name = os.path.basename(data.get("archive_name", "archive.zip").strip())
+        fmt = data.get("format", "zip").lower()
+        if not items:
+            return {"success": False, "error": "No items to compress"}
+        try:
+            if fmt in ("tar.gz", "tgz", "tar"):
+                if not archive_name.endswith((".tar.gz", ".tgz")):
+                    archive_name += ".tar.gz"
+                out_path = os.path.join(base_dir, archive_name)
+                with tarfile.open(out_path, "w:gz") as tar:
+                    for it in items:
+                        it_name = os.path.basename(it)
+                        full = os.path.join(base_dir, it_name)
+                        if os.path.exists(full) and os.path.abspath(full) != os.path.abspath(out_path):
+                            tar.add(full, arcname=it_name)
+            else:
+                if not archive_name.endswith(".zip"):
+                    archive_name += ".zip"
+                out_path = os.path.join(base_dir, archive_name)
+                with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+                    for it in items:
+                        it_name = os.path.basename(it)
+                        full = os.path.join(base_dir, it_name)
+                        if not os.path.exists(full) or os.path.abspath(full) == os.path.abspath(out_path):
+                            continue
+                        if os.path.isdir(full):
+                            for root, _, files in os.walk(full):
+                                for f in files:
+                                    fp = os.path.join(root, f)
+                                    if os.path.abspath(fp) == os.path.abspath(out_path):
+                                        continue
+                                    zipf.write(fp, os.path.relpath(fp, base_dir))
+                        else:
+                            zipf.write(full, it_name)
+            return {
+                "success": True,
+                "message": f"Arsip {archive_name} berhasil dibuat",
+                "archive_name": archive_name,
+                "size": os.path.getsize(out_path)
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     return {"error": "Unknown action"}
 
 async def run_agent():

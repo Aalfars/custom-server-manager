@@ -50,12 +50,47 @@ async def update_settings(payload: SettingsPayload, request: Request):
     return {"success": True, "message": "Pengaturan berhasil disimpan"}
 
 @router.get("/api/logs")
-async def get_audit_logs(request: Request):
+async def get_audit_logs(
+    request: Request,
+    limit: int = 100,
+    action_filter: str = "ALL",
+    search: str = ""
+):
     require_auth(request)
+    limit = min(max(10, limit), 200)
     db = get_db()
-    rows = db.execute("SELECT * FROM audit_logs ORDER BY id DESC LIMIT 50").fetchall()
+    
+    query = "SELECT * FROM audit_logs"
+    params = []
+    conditions = []
+
+    if action_filter and action_filter != "ALL":
+        conditions.append("action LIKE ?")
+        params.append(f"{action_filter}%")
+
+    if search and search.strip():
+        conditions.append("(detail LIKE ? OR action LIKE ? OR node_id LIKE ? OR ip LIKE ?)")
+        s = f"%{search.strip()}%"
+        params.extend([s, s, s, s])
+
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+
+    query += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+
+    rows = db.execute(query, params).fetchall()
     db.close()
     return {"logs": [dict(r) for r in rows]}
+
+@router.delete("/api/logs")
+async def delete_audit_logs(request: Request):
+    require_auth(request)
+    db = get_db()
+    db.execute("DELETE FROM audit_logs")
+    db.commit()
+    db.close()
+    return {"success": True, "message": "Seluruh audit log berhasil dibersihkan"}
 
 @router.get("/install-agent.sh", response_class=PlainTextResponse)
 async def serve_installer():

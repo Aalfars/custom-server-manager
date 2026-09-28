@@ -19,6 +19,13 @@
   <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
 
+  <!-- Chart.js CDN for Telemetry & Traffic History -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- Ace Editor CDN for Code & File Editing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ext-modelist.min.js"></script>
+
   <!-- Tailwind Configuration matching Monad Design System -->
   <script>
     tailwind.config = {
@@ -427,7 +434,7 @@
     </section>
 
     <!-- Dedicated Server Telemetry HUD -->
-    <section class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
       <div class="clean-card p-4">
         <div class="text-[10px] uppercase text-smoke flex items-center gap-1.5"><i class="fa-solid fa-microchip text-[9px] text-lake"></i> CPU Load</div>
         <div class="text-2xl sm:text-3xl font-editorial font-normal mt-0.5 text-offblack dark:text-parchment" id="dashValCpu">0.0%</div>
@@ -446,7 +453,12 @@
       <div class="clean-card p-4">
         <div class="text-[10px] uppercase text-smoke flex items-center gap-1.5"><i class="fa-solid fa-clock text-[9px] text-coral"></i> Server Uptime</div>
         <div class="text-2xl sm:text-3xl font-editorial font-normal mt-0.5 text-offblack dark:text-parchment" id="dashValUptime">0d 0h</div>
-        <div class="text-[10px] font-mono text-smoke mt-1" id="dashValNet">Drift: 0 KB/s</div>
+        <div class="text-[10px] font-mono text-smoke mt-1 truncate" id="dashValNet">Total I/O: 0 MB</div>
+      </div>
+      <div class="clean-card p-4 col-span-2 sm:col-span-1 lg:col-span-1">
+        <div class="text-[10px] uppercase text-smoke flex items-center gap-1.5"><i class="fa-solid fa-network-wired text-[9px] text-lake"></i> Network Traffic</div>
+        <div class="text-2xl sm:text-3xl font-editorial font-normal mt-0.5 text-offblack dark:text-parchment" id="dashValNetLive">0 KB/s</div>
+        <div class="text-[10px] font-mono text-smoke mt-1 truncate" id="dashValNetDetail">↓ 0.0 · ↑ 0.0 KB/s</div>
       </div>
     </section>
 
@@ -477,6 +489,10 @@
           <i class="fa-solid fa-terminal text-[11px]"></i>
           <span>Terminal</span>
         </button>
+        <button id="tabBtn-metrics" onclick="switchTab('metrics')" class="pill-btn-ghost text-xs flex-shrink-0">
+          <i class="fa-solid fa-chart-line text-[11px]"></i>
+          <span>Metrik & Traffic</span>
+        </button>
         <button id="tabBtn-services" onclick="switchTab('services')" class="pill-btn-ghost text-xs flex-shrink-0">
           <i class="fa-solid fa-gears text-[11px]"></i>
           <span>Services</span>
@@ -492,6 +508,10 @@
         <button id="tabBtn-files" onclick="switchTab('files')" class="pill-btn-ghost text-xs flex-shrink-0">
           <i class="fa-solid fa-folder-tree text-[11px]"></i>
           <span>File Browser</span>
+        </button>
+        <button id="tabBtn-audit" onclick="switchTab('audit')" class="pill-btn-ghost text-xs flex-shrink-0">
+          <i class="fa-solid fa-shield-halved text-[11px]"></i>
+          <span>Aktivitas & Log</span>
         </button>
       </div>
 
@@ -516,6 +536,91 @@
 
           <!-- xterm.js terminal mount point -->
           <div class="w-full bg-[#121214] rounded-2xl p-2 sm:p-4 mt-3 min-h-[340px] sm:min-h-[460px] shadow-inner overflow-hidden" id="terminalMount"></div>
+        </div>
+      </div>
+
+      <!-- TAB: HISTORIS METRIK & TRAFFIC -->
+      <div id="tabContent-metrics" class="hidden space-y-4">
+        <div class="clean-card p-4 sm:p-7 space-y-6">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-black/[0.04] dark:border-white/[0.06]">
+            <div>
+              <div class="pill-tag bg-lake/15 text-lake dark:text-sky text-[10px]">TIME-SERIES TELEMETRY</div>
+              <h3 class="text-2xl sm:text-3xl font-editorial mt-1">Historis Metrik & Bandwidth Tracker</h3>
+              <p class="text-xs text-smoke font-mono mt-0.5">Pemantauan visual beban server (CPU, RAM) & throughput jaringan (RX/TX).</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="flex items-center gap-1 bg-black/[0.03] dark:bg-white/[0.04] p-1 rounded-full border border-black/[0.04] dark:border-white/[0.06]">
+                <button id="rangeBtn-1h" onclick="changeMetricsRange('1h')" class="pill-btn-lake text-[11px] py-1 px-3">1 Jam</button>
+                <button id="rangeBtn-6h" onclick="changeMetricsRange('6h')" class="pill-btn-ghost text-[11px] py-1 px-3">6 Jam</button>
+                <button id="rangeBtn-24h" onclick="changeMetricsRange('24h')" class="pill-btn-ghost text-[11px] py-1 px-3">24 Jam</button>
+              </div>
+              <button onclick="loadMetricsHistory()" class="pill-btn-ghost text-xs py-1.5 px-3" title="Refresh Metrik">
+                <i class="fa-solid fa-arrows-rotate text-[11px]"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Live Network Throughput Indicator Strip -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-black/[0.02] dark:bg-white/[0.02] p-3 rounded-2xl border border-black/[0.04] dark:border-white/[0.06]">
+            <div class="p-2">
+              <div class="text-[10px] uppercase text-smoke font-mono">Download (RX) Speed</div>
+              <div class="text-xl font-editorial font-normal mt-0.5 text-lake dark:text-sky" id="metricRxSpeed">0.0 KB/s</div>
+            </div>
+            <div class="p-2">
+              <div class="text-[10px] uppercase text-smoke font-mono">Upload (TX) Speed</div>
+              <div class="text-xl font-editorial font-normal mt-0.5 text-coral" id="metricTxSpeed">0.0 KB/s</div>
+            </div>
+            <div class="p-2">
+              <div class="text-[10px] uppercase text-smoke font-mono">Total Bandwidth In</div>
+              <div class="text-xl font-editorial font-normal mt-0.5 text-offblack dark:text-parchment" id="metricTotalRx">0 MB</div>
+            </div>
+            <div class="p-2">
+              <div class="text-[10px] uppercase text-smoke font-mono">Total Bandwidth Out</div>
+              <div class="text-xl font-editorial font-normal mt-0.5 text-offblack dark:text-parchment" id="metricTotalTx">0 MB</div>
+            </div>
+          </div>
+
+          <!-- Charts Grid -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <!-- CPU & RAM Utilization Chart -->
+            <div class="p-4 sm:p-5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.04] dark:border-white/[0.06] space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <i class="fa-solid fa-microchip text-lake text-xs"></i>
+                  <span class="text-xs font-mono font-medium text-offblack dark:text-parchment">CPU & RAM Trend (%)</span>
+                </div>
+                <div class="flex items-center gap-3 text-[10px] font-mono text-smoke">
+                  <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-lake inline-block"></span> CPU</span>
+                  <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-mint inline-block"></span> RAM</span>
+                </div>
+              </div>
+              <div class="relative h-64 sm:h-72 w-full">
+                <canvas id="chartCpuMem"></canvas>
+              </div>
+            </div>
+
+            <!-- Network RX / TX Bandwidth Chart -->
+            <div class="p-4 sm:p-5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.04] dark:border-white/[0.06] space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <i class="fa-solid fa-network-wired text-sky text-xs"></i>
+                  <span class="text-xs font-mono font-medium text-offblack dark:text-parchment">Network Traffic (KB/s)</span>
+                </div>
+                <div class="flex items-center gap-3 text-[10px] font-mono text-smoke">
+                  <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-sky inline-block"></span> RX (Download)</span>
+                  <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-coral inline-block"></span> TX (Upload)</span>
+                </div>
+              </div>
+              <div class="relative h-64 sm:h-72 w-full">
+                <canvas id="chartNetTraffic"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="text-[11px] font-mono text-smoke flex items-center justify-between">
+            <span id="metricsLastSync">Sinkronisasi terakhir: -</span>
+            <span>Interval Rekaman Telemetri: 20 detik</span>
+          </div>
         </div>
       </div>
 
@@ -644,16 +749,32 @@
 
       <!-- TAB 5: REMOTE FILE BROWSER -->
       <div id="tabContent-files" class="hidden space-y-4">
-        <div class="clean-card p-4 sm:p-7 space-y-4">
+        <div class="clean-card p-4 sm:p-7 space-y-4 relative">
+          <!-- Drag-and-drop dropzone overlay -->
+          <div id="fileDropOverlay" class="absolute inset-0 bg-lake/90 text-white rounded-[28px] flex flex-col items-center justify-center gap-3 z-30 pointer-events-none hidden backdrop-blur-sm transition-all">
+            <div class="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center animate-bounce">
+              <i class="fa-solid fa-cloud-arrow-up text-3xl"></i>
+            </div>
+            <div class="text-center">
+              <div class="text-xl font-editorial">Lepaskan file di sini</div>
+              <div class="text-xs font-mono opacity-80 mt-1" id="fileDropTargetLabel">Unggah langsung ke direktori aktif</div>
+            </div>
+          </div>
+
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 class="text-2xl font-editorial">File Browser & Editor</h3>
-              <p class="text-xs text-smoke font-mono">Jelajahi direktori dan edit file konfigurasi server ini secara live.</p>
+              <p class="text-xs text-smoke font-mono">Jelajahi direktori, kompresi arsip, drag-and-drop upload, dan live Ace code editor.</p>
             </div>
             <div class="flex items-center gap-2 flex-wrap">
+              <!-- Instant File Filter -->
+              <div class="flex items-center gap-1.5 bg-black/[0.03] dark:bg-white/[0.04] px-3 py-1.5 rounded-full border border-black/[0.04] dark:border-white/[0.06]">
+                <i class="fa-solid fa-magnifying-glass text-smoke text-xs"></i>
+                <input type="text" id="fileFilterInput" placeholder="Cari file..." class="bg-transparent text-xs font-mono text-offblack dark:text-parchment focus:outline-none w-24 sm:w-32" oninput="filterFilesList(this.value)">
+              </div>
               <div class="flex items-center gap-1.5 bg-black/[0.03] dark:bg-white/[0.04] px-3 py-1.5 rounded-full border border-black/[0.04] dark:border-white/[0.06]">
                 <i class="fa-solid fa-folder-open text-sky text-xs"></i>
-                <input type="text" id="pathInputBar" class="bg-transparent text-xs font-mono text-offblack dark:text-parchment focus:outline-none w-36 sm:w-56" value="/root" onkeydown="if(event.key==='Enter') loadDirectory(this.value)">
+                <input type="text" id="pathInputBar" class="bg-transparent text-xs font-mono text-offblack dark:text-parchment focus:outline-none w-32 sm:w-48" value="/root" onkeydown="if(event.key==='Enter') loadDirectory(this.value)">
                 <button onclick="loadDirectory(document.getElementById('pathInputBar').value)" class="text-smoke hover:text-lake transition text-[11px]" title="Buka Direktori">
                   <i class="fa-solid fa-arrow-right"></i>
                 </button>
@@ -672,18 +793,94 @@
             </div>
           </div>
 
+          <!-- Batch Selection Bar -->
+          <div id="fileSelectionBar" class="hidden flex items-center justify-between bg-lake/10 dark:bg-lake/20 border border-lake/30 rounded-2xl px-4 py-2.5 text-xs font-mono">
+            <div class="flex items-center gap-2 text-lake dark:text-sky">
+              <i class="fa-solid fa-circle-check"></i>
+              <span id="selectedFilesCount">0 file dipilih</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="openCompressModalForSelection()" class="pill-btn-lake text-xs py-1 px-3">
+                <i class="fa-solid fa-file-zipper text-[10px]"></i>
+                <span>Kompres Terpilih</span>
+              </button>
+              <button onclick="clearFileSelection()" class="pill-btn-ghost text-xs py-1 px-2.5">
+                Batal
+              </button>
+            </div>
+          </div>
+
           <!-- Files Grid / List -->
           <div class="overflow-x-auto rounded-2xl -mx-4 sm:mx-0 px-4 sm:px-0">
             <table class="w-full text-left text-xs font-mono whitespace-nowrap">
               <thead class="bg-black/[0.03] dark:bg-white/[0.04] text-smoke uppercase">
                 <tr>
-                  <th class="py-3 px-4 rounded-l-xl">Name</th>
-                  <th class="py-3 px-4">Size</th>
-                  <th class="py-3 px-4">Permissions</th>
+                  <th class="py-3 px-3 w-8 rounded-l-xl"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAllFiles(this.checked)" class="rounded cursor-pointer text-lake focus:ring-0"></th>
+                  <th class="py-3 px-3">Name</th>
+                  <th class="py-3 px-3">Size</th>
+                  <th class="py-3 px-3">Permissions</th>
                   <th class="py-3 px-4 text-right rounded-r-xl">Action</th>
                 </tr>
               </thead>
               <tbody id="filesTableBody">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 6: AUDIT TRAIL & LOG AKTIVITAS -->
+      <div id="tabContent-audit" class="hidden space-y-4">
+        <div class="clean-card p-4 sm:p-7 space-y-5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-black/[0.04] dark:border-white/[0.06]">
+            <div>
+              <div class="pill-tag bg-sky/20 text-lake dark:text-sky text-[10px]">SECURITY AUDIT LOG</div>
+              <h3 class="text-2xl sm:text-3xl font-editorial mt-1">Aktivitas & Riwayat Audit</h3>
+              <p class="text-xs text-smoke font-mono mt-0.5">Catatan jejak keamanan, autentikasi, aksi file, dan eksekusi server yang diverifikasi IP Cloudflare.</p>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <button onclick="loadAuditLogs()" class="pill-btn-ghost text-xs py-1.5 px-3" title="Refresh Logs">
+                <i class="fa-solid fa-arrows-rotate text-[10px]"></i>
+                <span>Refresh</span>
+              </button>
+              <button onclick="clearAuditLogs()" class="pill-btn-ghost text-xs py-1.5 px-3 text-coral hover:border-coral" title="Bersihkan riwayat audit">
+                <i class="fa-solid fa-trash-can text-[10px]"></i>
+                <span>Bersihkan</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Filter & Search Toolbar -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar" id="auditActionFilters">
+              <button onclick="filterAuditAction('ALL')" class="audit-filter-btn pill-btn-lake text-xs py-1 px-3 flex-shrink-0" data-filter="ALL">Semua</button>
+              <button onclick="filterAuditAction('AUTH')" class="audit-filter-btn pill-btn-ghost text-xs py-1 px-3 flex-shrink-0" data-filter="AUTH">Autentikasi</button>
+              <button onclick="filterAuditAction('FILE')" class="audit-filter-btn pill-btn-ghost text-xs py-1 px-3 flex-shrink-0" data-filter="FILE">File Ops</button>
+              <button onclick="filterAuditAction('SERVICE')" class="audit-filter-btn pill-btn-ghost text-xs py-1 px-3 flex-shrink-0" data-filter="SERVICE">Services</button>
+              <button onclick="filterAuditAction('SYSTEM')" class="audit-filter-btn pill-btn-ghost text-xs py-1 px-3 flex-shrink-0" data-filter="SYSTEM">System</button>
+            </div>
+
+            <div class="flex items-center gap-2 bg-black/[0.03] dark:bg-white/[0.04] px-3.5 py-1.5 rounded-full border border-black/[0.04] dark:border-white/[0.06] w-full sm:w-72">
+              <i class="fa-solid fa-magnifying-glass text-smoke text-xs"></i>
+              <input type="text" id="auditSearchInput" placeholder="Cari IP, action, detail..." class="bg-transparent text-xs font-mono text-offblack dark:text-parchment focus:outline-none w-full" oninput="debounceAuditSearch(this.value)">
+            </div>
+          </div>
+
+          <!-- Audit Logs Table -->
+          <div class="overflow-x-auto rounded-2xl -mx-4 sm:mx-0 px-4 sm:px-0">
+            <table class="w-full text-left text-xs font-mono whitespace-nowrap">
+              <thead class="bg-black/[0.03] dark:bg-white/[0.04] text-smoke uppercase">
+                <tr>
+                  <th class="py-3 px-4 rounded-l-xl">Waktu</th>
+                  <th class="py-3 px-4">Client IP</th>
+                  <th class="py-3 px-4">Target Node</th>
+                  <th class="py-3 px-4">Action</th>
+                  <th class="py-3 px-4">Detail</th>
+                  <th class="py-3 px-4 text-right rounded-r-xl">Status</th>
+                </tr>
+              </thead>
+              <tbody id="auditLogsTableBody">
                 <!-- Injected via JS -->
               </tbody>
             </table>
@@ -812,27 +1009,59 @@
     </div>
   </div>
 
-  <!-- MODAL: FILE EDITOR -->
-  <div id="modalFileEditor" onclick="if(event.target===this) closeModal('modalFileEditor')" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
-    <div class="w-full max-w-4xl bg-white dark:bg-darkCard rounded-[28px] sm:rounded-[36px] p-5 sm:p-7 space-y-4 shadow-2xl relative border border-black/[0.06] dark:border-white/[0.08] max-h-[90vh] flex flex-col">
-      <div class="flex items-center justify-between pb-3 border-b border-black/[0.04] dark:border-white/[0.06]">
-        <div class="truncate mr-4">
-          <span class="text-xs font-mono uppercase text-smoke">FILE EDITOR</span>
-          <h4 id="editorFilePath" class="text-base sm:text-lg font-mono font-medium text-offblack dark:text-parchment truncate">/root/config.json</h4>
+  <!-- MODAL: FILE EDITOR (ACE EDITOR WITH SYNTAX HIGHLIGHTING) -->
+  <div id="modalFileEditor" onclick="if(event.target===this) closeModal('modalFileEditor')" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-2 sm:p-4">
+    <div class="w-full max-w-5xl bg-white dark:bg-darkCard rounded-[28px] sm:rounded-[36px] p-4 sm:p-6 space-y-3 shadow-2xl relative border border-black/[0.06] dark:border-white/[0.08] h-[92vh] flex flex-col">
+      <div class="flex items-center justify-between pb-2 border-b border-black/[0.04] dark:border-white/[0.06]">
+        <div class="truncate mr-4 flex items-center gap-3">
+          <div class="w-8 h-8 rounded-xl bg-lake/15 text-lake dark:text-sky flex items-center justify-center flex-shrink-0">
+            <i class="fa-solid fa-code text-sm"></i>
+          </div>
+          <div class="truncate">
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-mono uppercase text-smoke">FILE EDITOR</span>
+              <span id="editorSyntaxBadge" class="pill-tag text-[9px] bg-black/[0.04] dark:bg-white/[0.06] text-lake dark:text-sky font-semibold">TEXT</span>
+              <span class="text-[10px] font-mono text-smoke hidden sm:inline">· Pintasan: <kbd class="px-1.5 py-0.5 rounded bg-black/[0.05] dark:bg-white/[0.08] text-[9px]">Ctrl+S</kbd></span>
+            </div>
+            <h4 id="editorFilePath" class="text-sm sm:text-base font-mono font-medium text-offblack dark:text-parchment truncate">/root/config.json</h4>
+          </div>
         </div>
-        <button onclick="closeModal('modalFileEditor')" class="text-smoke hover:text-offblack dark:hover:text-white p-1">
-          <i class="fa-solid fa-xmark text-lg"></i>
-        </button>
+        <div class="flex items-center gap-2">
+          <select id="editorModeSelect" onchange="changeAceMode(this.value)" class="text-[11px] font-mono bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] rounded-lg px-2 py-1 text-smoke focus:outline-none hidden sm:block">
+            <option value="text">Plain Text</option>
+            <option value="python">Python</option>
+            <option value="json">JSON</option>
+            <option value="javascript">JavaScript</option>
+            <option value="sh">Shell / Bash</option>
+            <option value="html">HTML</option>
+            <option value="css">CSS</option>
+            <option value="yaml">YAML</option>
+            <option value="ini">INI / Systemd</option>
+            <option value="sql">SQL</option>
+            <option value="markdown">Markdown</option>
+          </select>
+          <button onclick="closeModal('modalFileEditor')" class="text-smoke hover:text-offblack dark:hover:text-white p-1">
+            <i class="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
       </div>
 
-      <textarea id="editorFileText" rows="16" class="w-full bg-[#121214] text-parchment p-3 sm:p-4 rounded-2xl font-mono text-xs focus:outline-none resize-none flex-1"></textarea>
+      <!-- Mount Container for Ace Editor & Fallback Textarea -->
+      <div class="relative flex-1 rounded-2xl overflow-hidden border border-black/[0.06] dark:border-white/[0.08]">
+        <div id="aceEditorMount" class="w-full h-full text-xs font-mono"></div>
+        <textarea id="editorFileText" rows="16" class="w-full h-full bg-[#121214] text-parchment p-3 sm:p-4 font-mono text-xs focus:outline-none resize-none hidden"></textarea>
+      </div>
 
-      <div class="flex items-center justify-between pt-2">
-        <span id="editorSaveStatus" class="text-xs font-mono text-smoke">Backup created before save.</span>
+      <div class="flex items-center justify-between pt-1">
+        <div class="flex items-center gap-3 text-xs font-mono text-smoke">
+          <span id="editorCursorPos">Ln 1, Col 1</span>
+          <span id="editorSaveStatus">Backup dibuat otomatis sebelum menyimpan.</span>
+        </div>
         <div class="flex items-center gap-2">
           <button onclick="closeModal('modalFileEditor')" class="pill-btn-ghost text-xs">Tutup</button>
-          <button onclick="saveCurrentFile()" class="pill-btn-lake text-xs">
-            <span>Save File ▸</span>
+          <button onclick="saveCurrentFile()" id="btnSaveFile" class="pill-btn-lake text-xs">
+            <i class="fa-solid fa-floppy-disk text-[10px]"></i>
+            <span>Simpan (Ctrl+S)</span>
           </button>
         </div>
       </div>
@@ -922,6 +1151,63 @@
     </div>
   </div>
 
+  <!-- MODAL: FILE COMPRESS (ZIP / TAR.GZ) -->
+  <div id="modalFileCompress" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-white dark:bg-darkCard rounded-[28px] sm:rounded-[36px] p-5 sm:p-7 space-y-5 shadow-2xl relative border border-black/[0.06] dark:border-white/[0.08]">
+      <button onclick="closeModal('modalFileCompress')" class="absolute top-5 right-5 text-smoke hover:text-offblack dark:hover:text-white p-1">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <div>
+        <div class="pill-tag bg-lake/20 text-lake dark:text-sky text-[10px]">ARCHIVE UTILITY</div>
+        <h3 class="text-2xl sm:text-3xl font-editorial mt-2">Kompres File / Folder</h3>
+        <p class="text-xs text-smoke font-mono mt-1">Gabungkan dan kompres item terpilih ke dalam arsip.</p>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="text-xs uppercase text-smoke font-mono block mb-1">Item yang Akan Dikompres</label>
+          <div id="compressItemsPreview" class="text-xs font-mono text-lake dark:text-sky font-semibold break-all bg-black/[0.03] dark:bg-white/[0.04] p-2.5 rounded-xl border border-black/[0.04] dark:border-white/[0.06] max-h-24 overflow-y-auto"></div>
+        </div>
+
+        <div>
+          <label class="text-xs uppercase text-smoke font-mono block mb-1">Nama Arsip</label>
+          <input type="text" id="compressArchiveNameInput" placeholder="archive" class="w-full text-xs bg-black/[0.02] dark:bg-darkCanvas border border-black/[0.08] dark:border-white/[0.08] rounded-xl px-3.5 py-2 font-mono text-offblack dark:text-parchment focus:outline-none focus:border-lake">
+        </div>
+
+        <div>
+          <label class="text-xs uppercase text-smoke font-mono block mb-1">Format Arsip</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="flex items-center gap-2 p-2.5 rounded-xl border border-black/[0.06] dark:border-white/[0.08] cursor-pointer hover:border-lake">
+              <input type="radio" name="compressFormatRadio" value="zip" checked class="text-lake focus:ring-0">
+              <div class="text-xs font-mono">
+                <span class="font-medium text-offblack dark:text-parchment">.ZIP</span>
+                <span class="block text-[10px] text-smoke">Standar ZIP universal</span>
+              </div>
+            </label>
+            <label class="flex items-center gap-2 p-2.5 rounded-xl border border-black/[0.06] dark:border-white/[0.08] cursor-pointer hover:border-lake">
+              <input type="radio" name="compressFormatRadio" value="tar.gz" class="text-lake focus:ring-0">
+              <div class="text-xs font-mono">
+                <span class="font-medium text-offblack dark:text-parchment">.TAR.GZ</span>
+                <span class="block text-[10px] text-smoke">Tarball Linux gzip</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div id="compressStatusMsg" class="text-xs font-mono hidden"></div>
+
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button onclick="closeModal('modalFileCompress')" class="pill-btn-ghost text-xs">Batal</button>
+          <button onclick="submitFileCompress()" id="btnSubmitCompress" class="pill-btn-lake text-xs">
+            <i class="fa-solid fa-file-zipper text-[10px]"></i>
+            <span>Mulai Kompresi</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: SETTINGS & ALERTS -->
   <div id="modalSettings" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="w-full max-w-md bg-white dark:bg-darkCard rounded-[28px] sm:rounded-[36px] p-5 sm:p-7 space-y-5 shadow-2xl relative border border-black/[0.06] dark:border-white/[0.08] max-h-[90vh] overflow-y-auto">
@@ -986,6 +1272,22 @@
     let termFit = null;
     let termSocket = null;
     let telemetryWs = null;
+
+    // Metrics & Bandwidth History State
+    let chartCpuMem = null;
+    let chartNetTraffic = null;
+    let currentMetricsRange = '1h';
+
+    // File Manager Enhancements State
+    let currentDirectoryEntries = [];
+    let selectedFileNames = new Set();
+    let aceEditor = null;
+    let itemsToCompress = [];
+
+    // Security & Audit Log State
+    let currentAuditFilter = 'ALL';
+    let auditSearchQuery = '';
+    let auditDebounceTimer = null;
 
     // Operator Dialogues (Pure English & Indonesian, Zero Kanji - Elaina The Ashen Witch)
     const dayDialogues = [
@@ -1154,7 +1456,10 @@
       const diskTotal = node.disk ? node.disk.total_gb : 0;
       const diskPct = node.disk ? node.disk.percent : 0;
       const loadAvg = node.cpu && node.cpu.load_avg ? node.cpu.load_avg.slice(0, 2).join(', ') : '0.0, 0.0';
-      const rx = node.network ? node.network.rx_kbps || 0 : 0;
+      const rx = node.network ? (node.network.rx_kbps || 0) : 0;
+      const tx = node.network ? (node.network.tx_kbps || 0) : 0;
+      const totRx = node.network ? (node.network.total_rx_mb || 0) : 0;
+      const totTx = node.network ? (node.network.total_tx_mb || 0) : 0;
 
       document.getElementById('dashValCpu').textContent = `${cpu}%`;
       document.getElementById('dashValLoadAvg').textContent = `Load Avg: ${loadAvg}`;
@@ -1166,7 +1471,26 @@
       document.getElementById('dashValDiskPct').textContent = `${diskPct}% Terpakai`;
 
       document.getElementById('dashValUptime').textContent = formatUptime(node.uptime);
-      document.getElementById('dashValNet').textContent = `Drift: ${rx.toFixed(1)} KB/s`;
+      const totalMb = totRx + totTx;
+      const totalStr = totalMb > 1024 ? `${(totalMb / 1024).toFixed(2)} GB` : `${totalMb.toFixed(1)} MB`;
+      document.getElementById('dashValNet').textContent = `Total I/O: ${totalStr}`;
+
+      const netTotalSpeed = rx + tx;
+      const netSpeedStr = netTotalSpeed > 1024 ? `${(netTotalSpeed / 1024).toFixed(2)} MB/s` : `${netTotalSpeed.toFixed(1)} KB/s`;
+      const netLiveEl = document.getElementById('dashValNetLive');
+      if (netLiveEl) netLiveEl.textContent = netSpeedStr;
+      const netDetailEl = document.getElementById('dashValNetDetail');
+      if (netDetailEl) netDetailEl.textContent = `↓ ${rx.toFixed(1)} · ↑ ${tx.toFixed(1)} KB/s`;
+
+      // Live metrics tab indicator strip
+      const mRx = document.getElementById('metricRxSpeed');
+      if (mRx) mRx.textContent = `${rx.toFixed(1)} KB/s`;
+      const mTx = document.getElementById('metricTxSpeed');
+      if (mTx) mTx.textContent = `${tx.toFixed(1)} KB/s`;
+      const mTotRx = document.getElementById('metricTotalRx');
+      if (mTotRx) mTotRx.textContent = totRx > 1024 ? `${(totRx / 1024).toFixed(2)} GB` : `${totRx.toFixed(1)} MB`;
+      const mTotTx = document.getElementById('metricTotalTx');
+      if (mTotTx) mTotTx.textContent = totTx > 1024 ? `${(totTx / 1024).toFixed(2)} GB` : `${totTx.toFixed(1)} MB`;
     }
 
     function fetchCurrentNodeData() {
@@ -1330,9 +1654,10 @@
     function switchTab(tabId) {
       if (!selectedNodeId) return;
       activeTab = tabId;
-      ['terminal', 'services', 'processes', 'commands', 'files'].forEach(t => {
+      ['terminal', 'metrics', 'services', 'processes', 'commands', 'files', 'audit'].forEach(t => {
         const btn = document.getElementById(`tabBtn-${t}`);
         const content = document.getElementById(`tabContent-${t}`);
+        if (!btn || !content) return;
         if (t === tabId) {
           btn.className = 'pill-btn-lake text-xs flex-shrink-0';
           content.classList.remove('hidden');
@@ -1344,12 +1669,316 @@
 
       if (tabId === 'terminal') {
         setTimeout(initTerminal, 80);
+      } else if (tabId === 'metrics') {
+        loadMetricsHistory(currentMetricsRange);
       } else if (tabId === 'services') {
         loadServices();
       } else if (tabId === 'processes') {
         loadProcesses();
       } else if (tabId === 'files') {
-        loadDirectory('/root');
+        loadDirectory(currentPath || '/root');
+      } else if (tabId === 'audit') {
+        loadAuditLogs();
+      }
+    }
+
+    // =========================================================================
+    // HISTORICAL TELEMETRY & BANDWIDTH CHARTS (CHART.JS)
+    // =========================================================================
+
+    function initMetricsCharts() {
+      if (typeof Chart === 'undefined') return;
+
+      const isDark = document.documentElement.classList.contains('dark');
+      const gridColor = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)';
+      const textColor = isDark ? '#a6a5a4' : '#5a5857';
+
+      // 1. CPU & RAM Chart
+      const ctxCpuMem = document.getElementById('chartCpuMem');
+      if (ctxCpuMem && !chartCpuMem) {
+        chartCpuMem = new Chart(ctxCpuMem, {
+          type: 'line',
+          data: {
+            labels: [],
+            datasets: [
+              {
+                label: 'CPU (%)',
+                data: [],
+                borderColor: '#2b59d1',
+                backgroundColor: 'rgba(43, 89, 209, 0.12)',
+                borderWidth: 2,
+                tension: 0.35,
+                pointRadius: 1,
+                pointHoverRadius: 4,
+                fill: true
+              },
+              {
+                label: 'RAM (%)',
+                data: [],
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                borderWidth: 2,
+                tension: 0.35,
+                pointRadius: 1,
+                pointHoverRadius: 4,
+                fill: true
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            scales: {
+              x: {
+                grid: { color: gridColor },
+                ticks: { color: textColor, font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 8 }
+              },
+              y: {
+                min: 0,
+                max: 100,
+                grid: { color: gridColor },
+                ticks: { color: textColor, font: { family: 'JetBrains Mono', size: 10 }, callback: v => `${v}%` }
+              }
+            },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: '#121214',
+                titleColor: '#f6f3f1',
+                bodyColor: '#a7fccd',
+                titleFont: { family: 'JetBrains Mono', size: 11 },
+                bodyFont: { family: 'JetBrains Mono', size: 11 }
+              }
+            }
+          }
+        });
+      }
+
+      // 2. Network Traffic Chart
+      const ctxNet = document.getElementById('chartNetTraffic');
+      if (ctxNet && !chartNetTraffic) {
+        chartNetTraffic = new Chart(ctxNet, {
+          type: 'line',
+          data: {
+            labels: [],
+            datasets: [
+              {
+                label: 'RX Download (KB/s)',
+                data: [],
+                borderColor: '#38bdf8',
+                backgroundColor: 'rgba(56, 189, 248, 0.12)',
+                borderWidth: 2,
+                tension: 0.35,
+                pointRadius: 1,
+                pointHoverRadius: 4,
+                fill: true
+              },
+              {
+                label: 'TX Upload (KB/s)',
+                data: [],
+                borderColor: '#f97316',
+                backgroundColor: 'rgba(249, 115, 22, 0.12)',
+                borderWidth: 2,
+                tension: 0.35,
+                pointRadius: 1,
+                pointHoverRadius: 4,
+                fill: true
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            scales: {
+              x: {
+                grid: { color: gridColor },
+                ticks: { color: textColor, font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 8 }
+              },
+              y: {
+                min: 0,
+                grid: { color: gridColor },
+                ticks: { color: textColor, font: { family: 'JetBrains Mono', size: 10 }, callback: v => `${v} KB/s` }
+              }
+            },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: '#121214',
+                titleColor: '#f6f3f1',
+                bodyColor: '#38bdf8',
+                titleFont: { family: 'JetBrains Mono', size: 11 },
+                bodyFont: { family: 'JetBrains Mono', size: 11 }
+              }
+            }
+          }
+        });
+      }
+    }
+
+    function changeMetricsRange(range) {
+      currentMetricsRange = range;
+      ['1h', '6h', '24h'].forEach(r => {
+        const btn = document.getElementById(`rangeBtn-${r}`);
+        if (!btn) return;
+        if (r === range) {
+          btn.className = 'pill-btn-lake text-[11px] py-1 px-3';
+        } else {
+          btn.className = 'pill-btn-ghost text-[11px] py-1 px-3';
+        }
+      });
+      loadMetricsHistory(range);
+    }
+
+    async function loadMetricsHistory(range) {
+      if (!selectedNodeId) return;
+      const targetRange = range || currentMetricsRange || '1h';
+      initMetricsCharts();
+
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/telemetry/history?range=${targetRange}`);
+        const data = await res.json();
+        const points = data.points || [];
+
+        const labels = [];
+        const cpuData = [];
+        const memData = [];
+        const rxData = [];
+        const txData = [];
+
+        points.forEach(pt => {
+          const d = new Date(pt.timestamp * 1000);
+          const timeLabel = targetRange === '24h' 
+            ? `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+            : `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}`;
+          labels.push(timeLabel);
+          cpuData.push(pt.cpu_percent);
+          memData.push(pt.mem_percent);
+          rxData.push(pt.rx_kbps);
+          txData.push(pt.tx_kbps);
+        });
+
+        if (chartCpuMem) {
+          chartCpuMem.data.labels = labels;
+          chartCpuMem.data.datasets[0].data = cpuData;
+          chartCpuMem.data.datasets[1].data = memData;
+          chartCpuMem.update();
+        }
+
+        if (chartNetTraffic) {
+          chartNetTraffic.data.labels = labels;
+          chartNetTraffic.data.datasets[0].data = rxData;
+          chartNetTraffic.data.datasets[1].data = txData;
+          chartNetTraffic.update();
+        }
+
+        const now = new Date();
+        const syncEl = document.getElementById('metricsLastSync');
+        if (syncEl) syncEl.textContent = `Sinkronisasi terakhir: ${now.toLocaleTimeString()} (${points.length} data point)`;
+      } catch (e) {
+        console.error("Failed to load metrics history:", e);
+      }
+    }
+
+    // =========================================================================
+    // AUDIT TRAIL & ACTIVITY LOGS
+    // =========================================================================
+
+    function filterAuditAction(category) {
+      currentAuditFilter = category;
+      document.querySelectorAll('.audit-filter-btn').forEach(btn => {
+        if (btn.getAttribute('data-filter') === category) {
+          btn.className = 'audit-filter-btn pill-btn-lake text-xs py-1 px-3 flex-shrink-0';
+        } else {
+          btn.className = 'audit-filter-btn pill-btn-ghost text-xs py-1 px-3 flex-shrink-0';
+        }
+      });
+      loadAuditLogs();
+    }
+
+    function debounceAuditSearch(query) {
+      clearTimeout(auditDebounceTimer);
+      auditDebounceTimer = setTimeout(() => {
+        auditSearchQuery = query;
+        loadAuditLogs();
+      }, 300);
+    }
+
+    async function loadAuditLogs() {
+      const tbody = document.getElementById('auditLogsTableBody');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-center text-smoke">Memuat riwayat audit...</td></tr>';
+
+      try {
+        const queryParams = new URLSearchParams({
+          limit: 100,
+          action_filter: currentAuditFilter || 'ALL',
+          search: auditSearchQuery || ''
+        });
+
+        const res = await fetch(`/api/logs?${queryParams.toString()}`);
+        const data = await res.json();
+        const logs = data.logs || [];
+        tbody.innerHTML = '';
+
+        if (logs.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-smoke">Belum ada riwayat audit yang tercatat.</td></tr>';
+          return;
+        }
+
+        logs.forEach(log => {
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors border-b border-black/[0.02] dark:border-white/[0.03]';
+
+          const isSuccess = (log.status === 'SUCCESS');
+          let actionBadgeClass = 'bg-sky/20 text-lake dark:text-sky';
+          if (log.action.startsWith('AUTH')) actionBadgeClass = 'bg-lake/20 text-lake dark:text-sky';
+          else if (log.action.startsWith('FILE')) actionBadgeClass = 'bg-gold/20 text-gold';
+          else if (log.action.startsWith('SERVICE')) actionBadgeClass = 'bg-mint/20 text-mint';
+          else if (log.action.startsWith('SYSTEM') || log.action.includes('REBOOT')) actionBadgeClass = 'bg-coral/20 text-coral';
+
+          const formattedTime = log.timestamp || '-';
+          const clientIp = log.ip || '-';
+
+          tr.innerHTML = `
+            <td class="py-2.5 px-4 text-smoke font-mono rounded-l-xl">${formattedTime}</td>
+            <td class="py-2.5 px-4 font-mono font-medium text-offblack dark:text-parchment">
+              <span class="inline-flex items-center gap-1.5 bg-black/[0.04] dark:bg-white/[0.06] px-2 py-0.5 rounded-md text-[11px]">
+                <i class="fa-solid fa-shield text-[9px] text-lake dark:text-sky"></i>
+                ${clientIp}
+              </span>
+            </td>
+            <td class="py-2.5 px-4 font-mono text-smoke">${log.node_id}</td>
+            <td class="py-2.5 px-4 font-mono">
+              <span class="pill-tag text-[9px] ${actionBadgeClass}">${log.action}</span>
+            </td>
+            <td class="py-2.5 px-4 font-mono text-offblack dark:text-parchment truncate max-w-xs sm:max-w-md" title="${log.detail || ''}">${log.detail || '-'}</td>
+            <td class="py-2.5 px-4 text-right rounded-r-xl">
+              <span class="pill-tag text-[9px] ${isSuccess ? 'bg-mint/20 text-offblack dark:text-mint' : 'bg-coral/20 text-coral'}">
+                ${log.status}
+              </span>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-coral">Gagal memuat log: ${e.message}</td></tr>`;
+      }
+    }
+
+    async function clearAuditLogs() {
+      if (!confirm('Apakah Anda yakin ingin membersihkan seluruh catatan log audit? Tindakan ini tidak dapat dibatalkan.')) return;
+      try {
+        const res = await fetch('/api/logs', { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          loadAuditLogs();
+        } else {
+          alert('Gagal membersihkan log: ' + (data.detail || 'Terjadi kesalahan'));
+        }
+      } catch (e) {
+        alert('Kesalahan jaringan: ' + e.message);
       }
     }
 
@@ -1560,94 +2189,308 @@
       }
     }
 
-    // Remote File Manager
+    // =========================================================================
+    // REMOTE FILE MANAGER (ACE EDITOR, ARCHIVING, DRAG & DROP, FILTER)
+    // =========================================================================
+
     let currentPath = '/root';
+
     async function loadDirectory(path) {
       if (!selectedNodeId) return;
       currentPath = path;
       const pathInput = document.getElementById('pathInputBar');
       if (pathInput) pathInput.value = path;
+      const filterInput = document.getElementById('fileFilterInput');
+      if (filterInput) filterInput.value = '';
+
+      clearFileSelection();
       const tbody = document.getElementById('filesTableBody');
-      tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-smoke">Scanning directory...</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="py-6 text-center text-smoke"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Membaca direktori...</td></tr>';
+
       try {
         const res = await fetch(`/api/nodes/${selectedNodeId}/files?path=${encodeURIComponent(path)}`);
         const data = await res.json();
-        const entries = data.entries || [];
-        tbody.innerHTML = '';
+        currentDirectoryEntries = data.entries || [];
+        renderDirectoryRows(currentDirectoryEntries);
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="5" class="py-6 text-center text-coral">Gagal membaca direktori server.</td></tr>';
+      }
+    }
 
-        if (path !== '/' && path !== '') {
-          const parentPath = path.substring(0, path.lastIndexOf('/')) || '/';
-          const tr = document.createElement('tr');
-          tr.className = 'cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.02]';
-          tr.onclick = () => loadDirectory(parentPath);
-          tr.innerHTML = `
-            <td class="py-2 px-4 font-bold text-lake rounded-l-xl"><i class="fa-solid fa-arrow-up mr-2"></i>.. (Parent Directory)</td>
-            <td class="py-2 px-4">-</td>
-            <td class="py-2 px-4">-</td>
-            <td class="py-2 px-4 text-right rounded-r-xl">-</td>
-          `;
-          tbody.appendChild(tr);
+    function renderDirectoryRows(entries) {
+      const tbody = document.getElementById('filesTableBody');
+      tbody.innerHTML = '';
+
+      if (currentPath !== '/' && currentPath !== '') {
+        const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/')) || '/';
+        const tr = document.createElement('tr');
+        tr.className = 'cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.02]';
+        tr.onclick = () => loadDirectory(parentPath);
+        tr.innerHTML = `
+          <td class="py-2.5 px-3"></td>
+          <td class="py-2.5 px-3 font-medium text-lake dark:text-sky rounded-l-xl"><i class="fa-solid fa-arrow-up mr-2"></i>.. (Parent Directory)</td>
+          <td class="py-2.5 px-3 text-smoke">-</td>
+          <td class="py-2.5 px-3 text-smoke font-mono">-</td>
+          <td class="py-2.5 px-3 text-right rounded-r-xl">-</td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      if (entries.length === 0) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td colspan="5" class="py-6 text-center text-smoke">Direktori kosong atau tidak ada file yang cocok dengan filter.</td></tr>';
+        tbody.appendChild(tr);
+        return;
+      }
+
+      entries.forEach(e => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors';
+        const isChecked = selectedFileNames.has(e.name);
+
+        let iconClass = 'fa-file-lines text-smoke';
+        const isArchive = /\.(zip|tar\.gz|tgz|tar\.bz2|tbz2|tar\.xz|txz|tar|rar|7z|gz|bz2|xz)$/i.test(e.name);
+        const isKnownBinary = /\.(gz|bz2|xz|zip|rar|7z|tar|ex5|ex4|exe|bin|so|dll|iso|png|jpg|jpeg|gif|webp|ico|pdf|docx|xlsx|pptx|mp4|mp3|pyc|db|sqlite|deb|rpm)$/i.test(e.name);
+        const isEditable = !isKnownBinary && (/\.(txt|py|sh|json|html|css|js|conf|ini|yml|yaml|service|env|md|log|sql|xml|csv|cfg|properties|bashrc|profile|gitignore)$/i.test(e.name) || (!e.is_dir && e.size < 512000));
+
+        if (e.is_dir) {
+          iconClass = 'fa-folder text-sky';
+        } else if (isArchive) {
+          iconClass = 'fa-file-zipper text-gold';
+        } else if (/\.(py|sh|json|html|css|js|sql|yml|yaml)$/i.test(e.name)) {
+          iconClass = 'fa-file-code text-lake';
         }
 
-        entries.forEach(e => {
-          const tr = document.createElement('tr');
-          tr.className = 'hover:bg-black/[0.02] dark:hover:bg-white/[0.02]';
+        let clickHandler = '';
+        if (e.is_dir) {
+          clickHandler = `loadDirectory('${e.path}')`;
+        } else if (isArchive) {
+          clickHandler = `openExtractModal('${e.path}', '${e.name}')`;
+        } else if (isEditable) {
+          clickHandler = `openFileEditor('${e.path}')`;
+        } else {
+          clickHandler = `window.location.href='/api/nodes/${selectedNodeId}/file-download?path=${encodeURIComponent(e.path)}'`;
+        }
 
-          let iconClass = 'fa-file-lines text-smoke';
-          const isArchive = /\.(zip|tar\.gz|tgz|tar\.bz2|tbz2|tar\.xz|txz|tar|rar|7z|gz|bz2|xz)$/i.test(e.name);
-          const isKnownBinary = /\.(gz|bz2|xz|zip|rar|7z|tar|ex5|ex4|exe|bin|so|dll|iso|png|jpg|jpeg|gif|webp|ico|pdf|docx|xlsx|pptx|mp4|mp3|pyc|db|sqlite|deb|rpm)$/i.test(e.name);
-          const isEditable = !isKnownBinary && (/\.(txt|py|sh|json|html|css|js|conf|ini|yml|yaml|service|env|md|log|sql|xml|csv|cfg|properties|bashrc|profile|gitignore)$/i.test(e.name) || (!e.is_dir && e.size < 512000));
-
-          if (e.is_dir) {
-            iconClass = 'fa-folder text-sky';
-          } else if (isArchive) {
-            iconClass = 'fa-file-zipper text-gold';
-          } else if (/\.(py|sh|json|html|css|js|sql|yml|yaml)$/i.test(e.name)) {
-            iconClass = 'fa-file-code text-lake';
-          }
-
-          let clickHandler = '';
-          if (e.is_dir) {
-            clickHandler = `loadDirectory('${e.path}')`;
-          } else if (isArchive) {
-            clickHandler = `openExtractModal('${e.path}', '${e.name}')`;
-          } else if (isEditable) {
-            clickHandler = `openFileEditor('${e.path}')`;
-          } else {
-            clickHandler = `window.location.href='/api/nodes/${selectedNodeId}/file-download?path=${encodeURIComponent(e.path)}'`;
-          }
-
-          let actionButtons = '';
-          if (e.is_dir) {
-            actionButtons = `<button onclick="loadDirectory('${e.path}')" class="pill-btn-ghost text-[10px] py-0.5 px-2">Open</button>`;
-          } else {
-            actionButtons = `
-              <div class="inline-flex items-center gap-1.5 justify-end">
-                <a href="/api/nodes/${selectedNodeId}/file-download?path=${encodeURIComponent(e.path)}" download class="pill-btn-ghost text-[10px] py-0.5 px-2 text-sky hover:text-lake" title="Download File">
-                  <i class="fa-solid fa-download"></i>
-                </a>
-                ${isArchive ? `<button onclick="openExtractModal('${e.path}', '${e.name}')" class="pill-btn-ghost text-[10px] py-0.5 px-2 text-coral hover:border-coral" title="Ekstrak Arsip"><i class="fa-solid fa-box-open mr-1"></i>Extract</button>` : ''}
-                ${isEditable ? `<button onclick="openFileEditor('${e.path}')" class="pill-btn-ghost text-[10px] py-0.5 px-2 text-lake" title="Edit File"><i class="fa-solid fa-pen-to-square mr-1"></i>Edit</button>` : ''}
-              </div>
-            `;
-          }
-
-          tr.innerHTML = `
-            <td class="py-2 px-4 font-medium text-offblack dark:text-parchment flex items-center gap-2 cursor-pointer rounded-l-xl" onclick="${clickHandler}">
-              <i class="fa-solid ${iconClass}"></i>
-              <span class="truncate max-w-[200px] sm:max-w-md">${e.name}</span>
-            </td>
-            <td class="py-2 px-4 text-smoke">${e.is_dir ? '-' : formatBytes(e.size)}</td>
-            <td class="py-2 px-4 text-smoke font-mono">${e.mode}</td>
-            <td class="py-2 px-4 text-right rounded-r-xl">
-              ${actionButtons}
-            </td>
+        let actionButtons = '';
+        if (e.is_dir) {
+          actionButtons = `
+            <div class="inline-flex items-center gap-1.5 justify-end">
+              <button onclick="loadDirectory('${e.path}')" class="pill-btn-ghost text-[10px] py-0.5 px-2">Buka</button>
+              <button onclick="openCompressModalForSingle('${e.path}', '${e.name}', true)" class="pill-btn-ghost text-[10px] py-0.5 px-2 text-lake" title="Kompres folder ini"><i class="fa-solid fa-file-zipper mr-1"></i>Zip</button>
+            </div>
           `;
-          tbody.appendChild(tr);
-        });
-      } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-coral">Failed to read directory.</td></tr>';
+        } else {
+          actionButtons = `
+            <div class="inline-flex items-center gap-1.5 justify-end">
+              <a href="/api/nodes/${selectedNodeId}/file-download?path=${encodeURIComponent(e.path)}" download class="pill-btn-ghost text-[10px] py-0.5 px-2 text-sky hover:text-lake" title="Download File">
+                <i class="fa-solid fa-download"></i>
+              </a>
+              ${isArchive ? `<button onclick="openExtractModal('${e.path}', '${e.name}')" class="pill-btn-ghost text-[10px] py-0.5 px-2 text-coral hover:border-coral" title="Ekstrak Arsip"><i class="fa-solid fa-box-open mr-1"></i>Ekstrak</button>` : `<button onclick="openCompressModalForSingle('${e.path}', '${e.name}', false)" class="pill-btn-ghost text-[10px] py-0.5 px-2 text-lake" title="Kompres file ini"><i class="fa-solid fa-file-zipper mr-1"></i>Zip</button>`}
+              ${isEditable ? `<button onclick="openFileEditor('${e.path}')" class="pill-btn-ghost text-[10px] py-0.5 px-2 text-mint hover:border-mint" title="Edit File"><i class="fa-solid fa-pen-to-square mr-1"></i>Edit</button>` : ''}
+            </div>
+          `;
+        }
+
+        tr.innerHTML = `
+          <td class="py-2.5 px-3">
+            <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleFileSelection('${e.name}', this.checked)" class="file-item-checkbox rounded cursor-pointer text-lake focus:ring-0">
+          </td>
+          <td class="py-2.5 px-3 font-medium text-offblack dark:text-parchment flex items-center gap-2 cursor-pointer rounded-l-xl" onclick="${clickHandler}">
+            <i class="fa-solid ${iconClass}"></i>
+            <span class="truncate max-w-[180px] sm:max-w-md">${e.name}</span>
+          </td>
+          <td class="py-2.5 px-3 text-smoke">${e.is_dir ? '-' : formatBytes(e.size)}</td>
+          <td class="py-2.5 px-3 text-smoke font-mono">${e.mode}</td>
+          <td class="py-2.5 px-3 text-right rounded-r-xl">
+            ${actionButtons}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function filterFilesList(query) {
+      const q = (query || '').toLowerCase().trim();
+      if (!q) {
+        renderDirectoryRows(currentDirectoryEntries);
+        return;
       }
+      const filtered = currentDirectoryEntries.filter(e => e.name.toLowerCase().includes(q));
+      renderDirectoryRows(filtered);
+    }
+
+    function toggleFileSelection(name, isChecked) {
+      if (isChecked) {
+        selectedFileNames.add(name);
+      } else {
+        selectedFileNames.delete(name);
+      }
+      updateSelectionUI();
+    }
+
+    function toggleSelectAllFiles(isChecked) {
+      if (isChecked) {
+        currentDirectoryEntries.forEach(e => selectedFileNames.add(e.name));
+      } else {
+        selectedFileNames.clear();
+      }
+      const filterVal = document.getElementById('fileFilterInput') ? document.getElementById('fileFilterInput').value : '';
+      filterFilesList(filterVal);
+      updateSelectionUI();
+    }
+
+    function clearFileSelection() {
+      selectedFileNames.clear();
+      const selectAllCb = document.getElementById('selectAllCheckbox');
+      if (selectAllCb) selectAllCb.checked = false;
+      const filterVal = document.getElementById('fileFilterInput') ? document.getElementById('fileFilterInput').value : '';
+      filterFilesList(filterVal);
+      updateSelectionUI();
+    }
+
+    function updateSelectionUI() {
+      const bar = document.getElementById('fileSelectionBar');
+      const countEl = document.getElementById('selectedFilesCount');
+      const selectAllCb = document.getElementById('selectAllCheckbox');
+      const count = selectedFileNames.size;
+
+      if (bar && countEl) {
+        if (count > 0) {
+          bar.classList.remove('hidden');
+          countEl.textContent = `${count} item dipilih`;
+        } else {
+          bar.classList.add('hidden');
+        }
+      }
+
+      if (selectAllCb) {
+        selectAllCb.checked = (currentDirectoryEntries.length > 0 && count === currentDirectoryEntries.length);
+      }
+    }
+
+    function openCompressModalForSelection() {
+      if (!selectedNodeId || selectedFileNames.size === 0) return;
+      itemsToCompress = Array.from(selectedFileNames);
+      setupAndOpenCompressModal();
+    }
+
+    function openCompressModalForSingle(path, name, isDir) {
+      if (!selectedNodeId) return;
+      itemsToCompress = [name];
+      setupAndOpenCompressModal();
+    }
+
+    function setupAndOpenCompressModal() {
+      const preview = document.getElementById('compressItemsPreview');
+      preview.textContent = itemsToCompress.join(', ');
+      const defaultName = itemsToCompress.length === 1 ? itemsToCompress[0].replace(/\.[^/.]+$/, "") + "_archive" : `archive_${Math.floor(Date.now() / 1000)}`;
+      document.getElementById('compressArchiveNameInput').value = defaultName;
+      document.getElementById('compressStatusMsg').classList.add('hidden');
+      document.getElementById('compressStatusMsg').textContent = '';
+      openModal('modalFileCompress');
+    }
+
+    async function submitFileCompress() {
+      if (!selectedNodeId || itemsToCompress.length === 0) return;
+      const archiveName = document.getElementById('compressArchiveNameInput').value.trim() || 'archive';
+      const formatRadio = document.querySelector('input[name="compressFormatRadio"]:checked');
+      const format = formatRadio ? formatRadio.value : 'zip';
+      const btn = document.getElementById('btnSubmitCompress');
+      const statusEl = document.getElementById('compressStatusMsg');
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Mengompres...';
+      statusEl.classList.remove('hidden');
+      statusEl.className = 'text-xs font-mono text-smoke';
+      statusEl.textContent = 'Membuat arsip di server...';
+
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/file-compress`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            directory: currentPath || '/root',
+            items: itemsToCompress,
+            archive_name: archiveName,
+            format: format
+          })
+        });
+        const data = await res.json();
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-file-zipper text-[10px]"></i> <span>Mulai Kompresi</span>';
+
+        if (data.success) {
+          statusEl.className = 'text-xs font-mono text-mint';
+          statusEl.textContent = `✓ Arsip berhasil dibuat: ${data.archive_name} (${formatBytes(data.size)})`;
+          clearFileSelection();
+          setTimeout(() => {
+            closeModal('modalFileCompress');
+            loadDirectory(currentPath);
+          }, 1000);
+        } else {
+          statusEl.className = 'text-xs font-mono text-coral';
+          statusEl.textContent = `Gagal: ${data.error || data.detail || 'Kompresi gagal'}`;
+        }
+      } catch (e) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-file-zipper text-[10px]"></i> <span>Mulai Kompresi</span>';
+        statusEl.className = 'text-xs font-mono text-coral';
+        statusEl.textContent = `Kesalahan jaringan: ${e.message}`;
+      }
+    }
+
+    function setupFileDragAndDrop() {
+      const dropZone = document.getElementById('tabContent-files');
+      const overlay = document.getElementById('fileDropOverlay');
+      if (!dropZone || !overlay) return;
+
+      let dragCounter = 0;
+
+      ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }, false);
+      });
+
+      dropZone.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        dragCounter++;
+        overlay.classList.remove('hidden');
+        const targetLabel = document.getElementById('fileDropTargetLabel');
+        if (targetLabel) targetLabel.textContent = `Unggah langsung ke: ${currentPath || '/root'}`;
+      });
+
+      dropZone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dragCounter--;
+        if (dragCounter <= 0) {
+          dragCounter = 0;
+          overlay.classList.add('hidden');
+        }
+      });
+
+      dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter = 0;
+        overlay.classList.add('hidden');
+
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          handleDroppedFiles(e.dataTransfer.files);
+        }
+      });
+    }
+
+    async function handleDroppedFiles(files) {
+      if (!selectedNodeId || files.length === 0) return;
+      openUploadModal();
+      const chooser = document.getElementById('fileUploadChooser');
+      if (chooser) {
+        chooser.files = files;
+      }
+      submitFileUpload();
     }
 
     function openUploadModal() {
@@ -1707,7 +2550,7 @@
             const res = JSON.parse(xhr.responseText);
             if (xhr.status === 200 && res.success) {
               statusEl.className = 'text-xs font-mono text-mint';
-              statusEl.textContent = `Berhasil: ${res.message}`;
+              statusEl.textContent = `✓ Berhasil: ${res.message}`;
               setTimeout(() => {
                 closeModal('modalFileUpload');
                 loadDirectory(currentPath);
@@ -1791,31 +2634,124 @@
       }
     }
 
+    function initAceEditor() {
+      if (window.ace && !aceEditor) {
+        aceEditor = ace.edit("aceEditorMount");
+        const isDark = document.documentElement.classList.contains('dark');
+        aceEditor.setTheme(isDark ? "ace/theme/tomorrow_night" : "ace/theme/chrome");
+        aceEditor.setFontSize(13);
+        aceEditor.setShowPrintMargin(false);
+        aceEditor.getSession().setUseWrapMode(true);
+        aceEditor.commands.addCommand({
+          name: 'saveFile',
+          bindKey: { win: 'Ctrl-S', mac: 'Command-S' },
+          exec: function() { saveCurrentFile(); }
+        });
+        aceEditor.selection.on('changeCursor', () => {
+          const pos = aceEditor.getCursorPosition();
+          const posEl = document.getElementById('editorCursorPos');
+          if (posEl) posEl.textContent = `Ln ${pos.row + 1}, Col ${pos.column + 1}`;
+        });
+      }
+    }
+
+    function detectAceMode(filename) {
+      const ext = filename.split('.').pop().toLowerCase();
+      const modeMap = {
+        'py': 'python',
+        'json': 'json',
+        'js': 'javascript',
+        'ts': 'typescript',
+        'html': 'html',
+        'htm': 'html',
+        'css': 'css',
+        'sh': 'sh',
+        'bash': 'sh',
+        'zsh': 'sh',
+        'yml': 'yaml',
+        'yaml': 'yaml',
+        'ini': 'ini',
+        'conf': 'ini',
+        'service': 'ini',
+        'cfg': 'ini',
+        'sql': 'sql',
+        'md': 'markdown',
+        'xml': 'xml',
+        'csv': 'text',
+        'txt': 'text',
+        'env': 'sh',
+        'bashrc': 'sh',
+        'profile': 'sh'
+      };
+      return modeMap[ext] || 'text';
+    }
+
+    function changeAceMode(mode) {
+      if (aceEditor) {
+        aceEditor.session.setMode(`ace/mode/${mode}`);
+        const badge = document.getElementById('editorSyntaxBadge');
+        if (badge) badge.textContent = mode.toUpperCase();
+        const select = document.getElementById('editorModeSelect');
+        if (select) select.value = mode;
+      }
+    }
+
     async function openFileEditor(path) {
       if (!selectedNodeId) return;
       document.getElementById('editorFilePath').textContent = path;
-      document.getElementById('editorFileText').value = 'Memuat isi file...';
-      document.getElementById('editorSaveStatus').textContent = 'Backup dibuat otomatis sebelum menyimpan.';
+      document.getElementById('editorSaveStatus').textContent = 'Memuat isi file...';
       openModal('modalFileEditor');
+
+      initAceEditor();
+
+      const fileName = path.split('/').pop();
+      const detectedMode = detectAceMode(fileName);
+      changeAceMode(detectedMode);
+
+      if (aceEditor) {
+        aceEditor.setValue('Memuat isi file...', -1);
+      } else {
+        const textEl = document.getElementById('editorFileText');
+        textEl.classList.remove('hidden');
+        textEl.value = 'Memuat isi file...';
+      }
+
       try {
         const res = await fetch(`/api/nodes/${selectedNodeId}/file-content?path=${encodeURIComponent(path)}`);
         const data = await res.json();
         if (!res.ok || data.error || data.detail) {
-          document.getElementById('editorFileText').value = `[!] Tidak dapat membuka file:\n\n${data.error || data.detail || 'Format file tidak didukung sebagai teks.'}`;
+          const errText = `[!] Tidak dapat membuka file:\n\n${data.error || data.detail || 'Format file tidak didukung sebagai teks.'}`;
+          if (aceEditor) aceEditor.setValue(errText, -1);
+          else document.getElementById('editorFileText').value = errText;
+          document.getElementById('editorSaveStatus').textContent = 'Error membuka file';
           return;
         }
-        document.getElementById('editorFileText').value = data.content || '';
+        const content = data.content || '';
+        if (aceEditor) {
+          aceEditor.setValue(content, -1);
+          aceEditor.clearSelection();
+          aceEditor.focus();
+        } else {
+          document.getElementById('editorFileText').value = content;
+        }
+        document.getElementById('editorSaveStatus').textContent = 'Backup dibuat otomatis sebelum menyimpan.';
       } catch (e) {
-        document.getElementById('editorFileText').value = `[!] Gagal memuat file: ${e.message}`;
+        const errText = `[!] Gagal memuat file: ${e.message}`;
+        if (aceEditor) aceEditor.setValue(errText, -1);
+        else document.getElementById('editorFileText').value = errText;
+        document.getElementById('editorSaveStatus').textContent = 'Koneksi error';
       }
     }
 
     async function saveCurrentFile() {
       if (!selectedNodeId) return;
       const path = document.getElementById('editorFilePath').textContent;
-      const content = document.getElementById('editorFileText').value;
+      const content = aceEditor ? aceEditor.getValue() : document.getElementById('editorFileText').value;
       const statusEl = document.getElementById('editorSaveStatus');
-      statusEl.textContent = 'Saving...';
+      const btn = document.getElementById('btnSaveFile');
+      statusEl.textContent = 'Menyimpan perubahan...';
+      if (btn) btn.disabled = true;
+
       try {
         const res = await fetch(`/api/nodes/${selectedNodeId}/file-save`, {
           method: 'POST',
@@ -1823,14 +2759,16 @@
           body: JSON.stringify({path, content})
         });
         const d = await res.json();
+        if (btn) btn.disabled = false;
         if (d.success) {
-          statusEl.textContent = 'File saved successfully!';
-          setTimeout(() => closeModal('modalFileEditor'), 1000);
+          statusEl.textContent = '✓ File berhasil disimpan!';
+          setTimeout(() => closeModal('modalFileEditor'), 900);
         } else {
-          statusEl.textContent = `Error: ${d.error}`;
+          statusEl.textContent = `Gagal menyimpan: ${d.error || d.detail || 'Terjadi kesalahan'}`;
         }
       } catch (e) {
-        statusEl.textContent = 'Network error saving file';
+        if (btn) btn.disabled = false;
+        statusEl.textContent = `Kesalahan jaringan: ${e.message}`;
       }
     }
 
@@ -2056,6 +2994,7 @@
     document.addEventListener('DOMContentLoaded', async () => {
       await fetchNodes();
       startTelemetryWs();
+      setupFileDragAndDrop();
 
       const savedNode = localStorage.getItem('kokoro_active_node');
       if (savedNode && nodesList.some(n => n.node_id === savedNode)) {
@@ -2064,7 +3003,7 @@
 
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-          ['modalFileEditor', 'modalFileUpload', 'modalFileExtract', 'modalRenameNode', 'modalSettings', 'modalAddNode'].forEach(id => closeModal(id));
+          ['modalFileEditor', 'modalFileUpload', 'modalFileExtract', 'modalFileCompress', 'modalRenameNode', 'modalSettings', 'modalAddNode'].forEach(id => closeModal(id));
         }
       });
     });

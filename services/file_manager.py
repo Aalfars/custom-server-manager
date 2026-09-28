@@ -153,3 +153,62 @@ def extract_archive(archive_path: str, destination: Optional[str] = None) -> Dic
         "message": f"Berhasil mengekstrak {os.path.basename(src)} ke {dest}",
         "destination": dest
     }
+
+def compress_files(base_dir: str, items: List[str], archive_name: str, format: str = "zip") -> Dict:
+    import zipfile
+    import tarfile
+
+    base = os.path.abspath(base_dir)
+    if not os.path.isdir(base):
+        raise NotADirectoryError(f"Directory not found: {base_dir}")
+
+    if not items:
+        raise ValueError("Tidak ada file atau folder yang dipilih untuk dikompres")
+
+    archive_name = os.path.basename(archive_name.strip())
+    if not archive_name:
+        archive_name = "archive"
+
+    format = format.lower().strip()
+    if format in ("tar.gz", "tgz", "tar"):
+        if not archive_name.endswith((".tar.gz", ".tgz")):
+            archive_name += ".tar.gz"
+        out_path = os.path.join(base, archive_name)
+
+        with tarfile.open(out_path, "w:gz") as tar:
+            for item in items:
+                item_name = os.path.basename(item)
+                full_path = os.path.join(base, item_name)
+                if os.path.exists(full_path) and os.path.abspath(full_path) != os.path.abspath(out_path):
+                    tar.add(full_path, arcname=item_name)
+    else:
+        # Default zip
+        if not archive_name.endswith(".zip"):
+            archive_name += ".zip"
+        out_path = os.path.join(base, archive_name)
+
+        with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+            for item in items:
+                item_name = os.path.basename(item)
+                full_path = os.path.join(base, item_name)
+                if not os.path.exists(full_path) or os.path.abspath(full_path) == os.path.abspath(out_path):
+                    continue
+                if os.path.isdir(full_path):
+                    for root, _, files in os.walk(full_path):
+                        for file in files:
+                            file_p = os.path.join(root, file)
+                            if os.path.abspath(file_p) == os.path.abspath(out_path):
+                                continue
+                            rel_p = os.path.relpath(file_p, base)
+                            zipf.write(file_p, rel_p)
+                else:
+                    zipf.write(full_path, item_name)
+
+    size_kb = round(os.path.getsize(out_path) / 1024, 1)
+    return {
+        "success": True,
+        "message": f"Berhasil membuat arsip {archive_name} ({size_kb} KB)",
+        "archive_path": out_path,
+        "archive_name": archive_name,
+        "size": os.path.getsize(out_path)
+    }
