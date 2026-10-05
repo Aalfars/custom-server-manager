@@ -61,6 +61,31 @@ def init_db():
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('alert_ram_threshold', '90')")
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('alert_disk_threshold', '90')")
 
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS command_presets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        command TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        category TEXT DEFAULT 'General',
+        created_at INTEGER
+    )
+    """)
+
+    # Seed Default Command Presets if empty
+    c.execute("SELECT COUNT(*) FROM command_presets")
+    if c.fetchone()[0] == 0:
+        now_ts = int(time.time())
+        presets = [
+            ("Disk & Inode Overview", "df -h; echo '--- INODES ---'; df -i; echo '--- TOP DIRECTORIES ---'; du -sh /* 2>/dev/null | sort -hr | head -n 10", "Cek penggunaan kapasitas disk dan ukuran folder terbesar", "System", now_ts),
+            ("Top Resource Processes", "uptime; echo '--- TOP CPU ---'; ps aux --sort=-%cpu | head -n 8; echo '--- TOP RAM ---'; ps aux --sort=-%mem | head -n 8", "Lihat proses yang paling memakan CPU dan memori", "System", now_ts),
+            ("Clean RAM Cache & Swap", "sync; echo 3 > /proc/sys/vm/drop_caches; swapoff -a && swapon -a; free -m", "Kosongkan buffer RAM dan swap untuk meringankan server", "Maintenance", now_ts),
+            ("Check Failed Services", "systemctl --failed --no-pager; echo '--- CRITICAL LOGS ---'; journalctl -p 3 -xb -n 15 --no-pager", "Periksa semua service yang gagal berjalan dan error log", "System", now_ts),
+            ("Listening Ports & Sockets", "ss -tulpn; echo '--- ESTABLISHED ---'; ss -tan state established", "Lihat port yang terbuka dan koneksi aktif", "Network", now_ts),
+            ("Git Pull & Restart App", "cd /root/server-manager && git pull && systemctl restart kokoro-server", "Tarik pembaruan dari Git dan reload service manager", "App", now_ts)
+        ]
+        c.executemany("INSERT INTO command_presets (name, command, description, category, created_at) VALUES (?, ?, ?, ?, ?)", presets)
+
     # Ensure Local Node is registered
     c.execute("SELECT id FROM nodes WHERE is_local = 1")
     if not c.fetchone():
@@ -159,3 +184,47 @@ def get_node_name(node_id: str, default: str = "") -> str:
     except Exception:
         pass
     return default
+
+def get_presets():
+    try:
+        db = get_db()
+        rows = db.execute("SELECT * FROM command_presets ORDER BY category ASC, id ASC").fetchall()
+        db.close()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+def create_preset(name: str, command: str, description: str = "", category: str = "General") -> int:
+    db = get_db()
+    c = db.cursor()
+    c.execute("""
+    INSERT INTO command_presets (name, command, description, category, created_at)
+    VALUES (?, ?, ?, ?, ?)
+    """, (name, command, description, category, int(time.time())))
+    preset_id = c.lastrowid
+    db.commit()
+    db.close()
+    return preset_id
+
+def update_preset(preset_id: int, name: str, command: str, description: str = "", category: str = "General") -> bool:
+    db = get_db()
+    c = db.cursor()
+    c.execute("""
+    UPDATE command_presets
+    SET name = ?, command = ?, description = ?, category = ?
+    WHERE id = ?
+    """, (name, command, description, category, preset_id))
+    affected = c.rowcount
+    db.commit()
+    db.close()
+    return affected > 0
+
+def delete_preset(preset_id: int) -> bool:
+    db = get_db()
+    c = db.cursor()
+    c.execute("DELETE FROM command_presets WHERE id = ?", (preset_id,))
+    affected = c.rowcount
+    db.commit()
+    db.close()
+    return affected > 0
+

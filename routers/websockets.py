@@ -1,5 +1,6 @@
 import time
 import json
+import secrets
 import asyncio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -7,6 +8,7 @@ from core.config import connected_agents, telemetry_subscribers
 from core.database import get_db, log_audit
 from services.telemetry import get_local_telemetry
 from services.terminal import handle_local_terminal, handle_remote_terminal
+from services.log_tailer import stream_local_log
 
 router = APIRouter(tags=["websockets"])
 
@@ -55,6 +57,59 @@ async def ws_terminal(websocket: WebSocket, node_id: str):
     else:
         await handle_remote_terminal(websocket, node_id)
 
+@router.websocket("/ws/log-tail/{node_id}")
+async def ws_log_tail(websocket: WebSocket, node_id: str):
+    await websocket.accept()
+    tail_task = None
+    tail_id = secrets.token_hex(8)
+    try:
+        init_data = await websocket.receive_json()
+        path = init_data.get("path", "/var/log/syslog")
+        lines = int(init_data.get("lines", 50))
+
+        if node_id == "local-host":
+            async def send_chunk(chunk: str):
+                await websocket.send_json({"type": "log_data", "data": chunk})
+
+            tail_task = asyncio.create_task(stream_local_log(path, lines, send_chunk))
+
+            while True:
+                client_msg = await websocket.receive_json()
+                if client_msg.get("action") == "stop":
+                    break
+        else:
+            agent = connected_agents.get(node_id)
+            if not agent:
+                await websocket.send_json({"type": "error", "error": "Agent is offline"})
+                await websocket.close()
+                return
+
+            agent.setdefault("tail_sessions", {})[tail_id] = websocket
+            await agent["ws"].send_json({
+                "action": "open_log_tail",
+                "tail_id": tail_id,
+                "path": path,
+                "lines": lines
+            })
+
+            while True:
+                client_msg = await websocket.receive_json()
+                if client_msg.get("action") == "stop":
+                    break
+    except (WebSocketDisconnect, Exception):
+        pass
+    finally:
+        if tail_task and not tail_task.done():
+            tail_task.cancel()
+        if node_id != "local-host":
+            agent = connected_agents.get(node_id)
+            if agent:
+                agent.get("tail_sessions", {}).pop(tail_id, None)
+                try:
+                    await agent["ws"].send_json({"action": "close_log_tail", "tail_id": tail_id})
+                except Exception:
+                    pass
+
 @router.websocket("/ws/agent/{token}")
 async def ws_agent_connect(websocket: WebSocket, token: str):
     db = get_db()
@@ -75,7 +130,8 @@ async def ws_agent_connect(websocket: WebSocket, token: str):
         "last_seen": time.time(),
         "telemetry": {},
         "pending_requests": {},
-        "term_sessions": {}
+        "term_sessions": {},
+        "tail_sessions": {}
     }
     connected_agents[node_id] = agent_entry
     log_audit(node_id, "AGENT_CONNECTED", f"Agent for node '{node['name']}' connected")
@@ -100,6 +156,12 @@ async def ws_agent_connect(websocket: WebSocket, token: str):
                     if target_ws:
                         raw = data.get("data", "")
                         await target_ws.send_text(raw)
+                elif msg_type == "log_stream":
+                    tail_id = data.get("tail_id")
+                    target_ws = agent_entry.get("tail_sessions", {}).get(tail_id)
+                    if target_ws:
+                        raw = data.get("data", "")
+                        await target_ws.send_json({"type": "log_data", "data": raw})
             elif "bytes" in msg:
                 pass
     except (WebSocketDisconnect, Exception):
@@ -107,3 +169,4 @@ async def ws_agent_connect(websocket: WebSocket, token: str):
     finally:
         connected_agents.pop(node_id, None)
         log_audit(node_id, "AGENT_DISCONNECTED", f"Agent '{node['name']}' disconnected")
+

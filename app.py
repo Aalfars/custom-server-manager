@@ -18,7 +18,11 @@ from routers import (
     files_router,
     exec_router,
     settings_router,
-    websockets_router
+    websockets_router,
+    presets_router,
+    cron_router,
+    network_router,
+    logs_router
 )
 
 # Initialize Database
@@ -98,6 +102,10 @@ app.include_router(files_router)
 app.include_router(exec_router)
 app.include_router(settings_router)
 app.include_router(websockets_router)
+app.include_router(presets_router)
+app.include_router(cron_router)
+app.include_router(network_router)
+app.include_router(logs_router)
 
 if __name__ == "__main__":
     import uvicorn

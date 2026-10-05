@@ -503,7 +503,19 @@
         </button>
         <button id="tabBtn-commands" onclick="switchTab('commands')" class="pill-btn-ghost text-xs flex-shrink-0">
           <i class="fa-solid fa-bolt text-[11px]"></i>
-          <span>Exec Scripts</span>
+          <span>Exec & Runbooks</span>
+        </button>
+        <button id="tabBtn-cron" onclick="switchTab('cron')" class="pill-btn-ghost text-xs flex-shrink-0">
+          <i class="fa-solid fa-clock text-[11px]"></i>
+          <span>Cron Scheduler</span>
+        </button>
+        <button id="tabBtn-network" onclick="switchTab('network')" class="pill-btn-ghost text-xs flex-shrink-0">
+          <i class="fa-solid fa-network-wired text-[11px]"></i>
+          <span>Port & Firewall</span>
+        </button>
+        <button id="tabBtn-logs" onclick="switchTab('logs')" class="pill-btn-ghost text-xs flex-shrink-0">
+          <i class="fa-solid fa-bars-staggered text-[11px]"></i>
+          <span>Live Log Stream</span>
         </button>
         <button id="tabBtn-files" onclick="switchTab('files')" class="pill-btn-ghost text-xs flex-shrink-0">
           <i class="fa-solid fa-folder-tree text-[11px]"></i>
@@ -697,37 +709,42 @@
         </div>
       </div>
 
-      <!-- TAB 4: QUICK EXEC & SCRIPTS -->
+      <!-- TAB 4: QUICK EXEC & RUNBOOK PRESETS -->
       <div id="tabContent-commands" class="hidden space-y-4">
         <div class="clean-card p-4 sm:p-7 space-y-5">
-          <div>
-            <h3 class="text-2xl font-editorial">Batch Commands & Recipes</h3>
-            <p class="text-xs text-smoke font-mono">Eksekusi perintah bash cepat khusus pada server ini.</p>
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 class="text-2xl font-editorial">Batch Commands & Runbook Presets</h3>
+              <p class="text-xs text-smoke font-mono">Preset perintah bash 1-klik dan script runner terintegrasi.</p>
+            </div>
+            <button onclick="openAddPresetModal()" class="pill-btn-lake text-xs flex-shrink-0 self-start sm:self-auto">
+              <i class="fa-solid fa-plus text-[10px]"></i>
+              <span>+ Tambah Preset</span>
+            </button>
           </div>
 
-          <!-- Recipe Buttons -->
-          <div class="flex flex-wrap gap-2">
-            <button onclick="runQuickScript('apt update && apt upgrade -y')" class="pill-btn-ghost text-xs">
-              <i class="fa-solid fa-sync text-lake"></i>
-              <span>System Update (apt upgrade)</span>
-            </button>
-            <button onclick="runQuickScript('journalctl --vacuum-time=2d && apt autoremove -y')" class="pill-btn-ghost text-xs">
-              <i class="fa-solid fa-broom text-coral"></i>
-              <span>Clean Journal Logs</span>
-            </button>
-            <button onclick="runQuickScript('free -h && df -h')" class="pill-btn-ghost text-xs">
-              <i class="fa-solid fa-chart-pie text-mint"></i>
-              <span>Inspect Memory & Disk</span>
-            </button>
-            <button onclick="runQuickScript('uptime && uname -a')" class="pill-btn-ghost text-xs">
-              <i class="fa-solid fa-info-circle text-sky"></i>
-              <span>OS Kernel & Uptime</span>
-            </button>
+          <!-- Runbook Category Filter Pills -->
+          <div class="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-mono" id="presetCategoryTabs">
+            <button onclick="filterPresetsByCategory('ALL')" class="pill-tag bg-lake text-white cursor-pointer px-3 py-1" id="presetCat-ALL">Semua</button>
+            <button onclick="filterPresetsByCategory('System')" class="pill-tag bg-black/[0.04] dark:bg-white/[0.06] text-smoke hover:text-offblack dark:hover:text-white cursor-pointer px-3 py-1" id="presetCat-System">System</button>
+            <button onclick="filterPresetsByCategory('Maintenance')" class="pill-tag bg-black/[0.04] dark:bg-white/[0.06] text-smoke hover:text-offblack dark:hover:text-white cursor-pointer px-3 py-1" id="presetCat-Maintenance">Maintenance</button>
+            <button onclick="filterPresetsByCategory('Network')" class="pill-tag bg-black/[0.04] dark:bg-white/[0.06] text-smoke hover:text-offblack dark:hover:text-white cursor-pointer px-3 py-1" id="presetCat-Network">Network</button>
+            <button onclick="filterPresetsByCategory('App')" class="pill-tag bg-black/[0.04] dark:bg-white/[0.06] text-smoke hover:text-offblack dark:hover:text-white cursor-pointer px-3 py-1" id="presetCat-App">App</button>
+          </div>
+
+          <!-- Dynamic Presets Grid -->
+          <div id="presetsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <!-- Injected via JS -->
           </div>
 
           <!-- Custom Command Input -->
-          <div class="space-y-2 pt-2">
-            <label class="text-xs uppercase text-smoke font-mono">Custom Bash Command</label>
+          <div class="space-y-2 pt-3 border-t border-black/[0.04] dark:border-white/[0.06]">
+            <div class="flex items-center justify-between">
+              <label class="text-xs uppercase text-smoke font-mono">Custom Bash Command</label>
+              <button onclick="saveCurrentInputAsPreset()" class="text-lake dark:text-sky text-[11px] font-mono hover:underline">
+                <i class="fa-regular fa-bookmark"></i> Simpan Jadi Preset
+              </button>
+            </div>
             <div class="flex items-center gap-2">
               <input type="text" id="customCmdInput" placeholder="e.g. systemctl restart mt5-trading" class="flex-1 text-xs bg-white/70 dark:bg-darkCanvas border border-black/[0.06] dark:border-white/[0.08] rounded-full px-4 py-2.5 font-mono text-offblack dark:text-parchment focus:outline-none focus:border-lake">
               <button onclick="executeCustomCommand()" class="pill-btn-lake text-xs flex-shrink-0">
@@ -739,10 +756,261 @@
           <!-- Output Box -->
           <div class="space-y-2">
             <div class="flex items-center justify-between text-xs text-smoke font-mono">
-              <span>OUTPUT LOG</span>
+              <span id="cmdExecStatusLabel">OUTPUT LOG</span>
               <button onclick="document.getElementById('cmdOutputArea').textContent = ''" class="hover:underline">Clear</button>
             </div>
             <pre id="cmdOutputArea" class="w-full bg-[#121214] text-parchment p-3 sm:p-4 rounded-2xl font-mono text-xs overflow-x-auto min-h-[140px] max-h-[350px]">Ready for execution...</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: CRON SCHEDULER -->
+      <div id="tabContent-cron" class="hidden space-y-4">
+        <div class="clean-card p-4 sm:p-7 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="text-2xl font-editorial">Cron Task Scheduler</h3>
+                <span id="cronTotalBadge" class="pill-tag bg-mint/20 text-offblack dark:text-mint text-[10px]">0 JOBS</span>
+              </div>
+              <p class="text-xs text-smoke font-mono">Otomatisasi jadwal script dan rutinitas pemeliharaan server.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="openAddCronModal()" class="pill-btn-lake text-xs flex-shrink-0">
+                <i class="fa-solid fa-plus text-[10px]"></i>
+                <span>+ Tambah Cron Job</span>
+              </button>
+              <button onclick="loadCronJobs()" class="pill-btn-ghost text-xs py-2 px-3 flex-shrink-0" title="Refresh">
+                <i class="fa-solid fa-arrows-rotate"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Cron Jobs Table -->
+          <div class="overflow-x-auto rounded-2xl -mx-4 sm:mx-0 px-4 sm:px-0">
+            <table class="w-full text-left text-xs font-mono whitespace-nowrap">
+              <thead class="bg-black/[0.03] dark:bg-white/[0.04] text-smoke uppercase">
+                <tr>
+                  <th class="py-3 px-4 rounded-l-xl">Status</th>
+                  <th class="py-3 px-4">Jadwal & Waktu</th>
+                  <th class="py-3 px-4">Deskripsi</th>
+                  <th class="py-3 px-4">Perintah (Command)</th>
+                  <th class="py-3 px-4 text-right rounded-r-xl">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="cronTableBody">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: NETWORK & SECURITY -->
+      <div id="tabContent-network" class="hidden space-y-5">
+        <!-- 3 Summary Stat Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          <div class="clean-card p-4 sm:p-5 flex items-center justify-between">
+            <div>
+              <div class="text-[10px] uppercase font-mono text-smoke">LISTENING PORTS</div>
+              <div class="text-2xl sm:text-3xl font-editorial mt-1" id="netOpenPortsCount">0</div>
+              <div class="text-[10px] font-mono text-lake dark:text-sky mt-0.5" id="netPublicPortsCount">0 Public Exposed</div>
+            </div>
+            <div class="w-10 h-10 rounded-2xl bg-lake/10 text-lake dark:text-sky flex items-center justify-center text-base">
+              <i class="fa-solid fa-satellite-dish"></i>
+            </div>
+          </div>
+
+          <div class="clean-card p-4 sm:p-5 flex items-center justify-between">
+            <div>
+              <div class="text-[10px] uppercase font-mono text-smoke">ESTABLISHED CONNS</div>
+              <div class="text-2xl sm:text-3xl font-editorial mt-1" id="netActiveConnsCount">0</div>
+              <div class="text-[10px] font-mono text-mint mt-0.5">Active TCP Clients</div>
+            </div>
+            <div class="w-10 h-10 rounded-2xl bg-mint/15 text-offblack dark:text-mint flex items-center justify-center text-base">
+              <i class="fa-solid fa-network-wired"></i>
+            </div>
+          </div>
+
+          <div class="clean-card p-4 sm:p-5 flex items-center justify-between">
+            <div>
+              <div class="text-[10px] uppercase font-mono text-smoke">UFW FIREWALL</div>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="text-xl sm:text-2xl font-editorial" id="netUfwStatusText">CHECKING...</span>
+                <span class="w-2.5 h-2.5 rounded-full bg-smoke" id="netUfwStatusDot"></span>
+              </div>
+              <div class="text-[10px] font-mono text-smoke mt-0.5" id="netUfwRulesCount">0 Rules Defined</div>
+            </div>
+            <div class="flex flex-col gap-1 items-end">
+              <button onclick="toggleUfwState()" id="btnToggleUfw" class="pill-btn-ghost text-[10px] py-1 px-3">
+                <span>Toggle</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 1: Listening Ports -->
+        <div class="clean-card p-4 sm:p-7 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 class="text-2xl font-editorial">Listening Ports & Services</h3>
+              <p class="text-xs text-smoke font-mono">Port terbuka pada interface jaringan dan aplikasi yang mendengarkan.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <input type="text" id="netPortSearchInput" oninput="filterPortsTable()" placeholder="Cari port / proses..." class="text-xs bg-white/70 dark:bg-darkCanvas border border-black/[0.06] dark:border-white/[0.08] rounded-full px-4 py-2 font-mono text-offblack dark:text-parchment w-full sm:w-56 focus:outline-none focus:border-lake">
+              <button onclick="loadNetworkInfo()" class="pill-btn-ghost text-xs py-2 px-3 flex-shrink-0" title="Refresh">
+                <i class="fa-solid fa-arrows-rotate"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto rounded-2xl -mx-4 sm:mx-0 px-4 sm:px-0">
+            <table class="w-full text-left text-xs font-mono whitespace-nowrap">
+              <thead class="bg-black/[0.03] dark:bg-white/[0.04] text-smoke uppercase">
+                <tr>
+                  <th class="py-3 px-4 rounded-l-xl">Port</th>
+                  <th class="py-3 px-4">Protokol</th>
+                  <th class="py-3 px-4">Aksesibilitas</th>
+                  <th class="py-3 px-4">Bind IP</th>
+                  <th class="py-3 px-4">Proses / Daemon</th>
+                  <th class="py-3 px-4 text-right rounded-r-xl">Proteksi UFW</th>
+                </tr>
+              </thead>
+              <tbody id="netPortsTableBody">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Section 2: UFW Firewall Rules -->
+        <div class="clean-card p-4 sm:p-7 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 class="text-2xl font-editorial">UFW Firewall Rules</h3>
+              <p class="text-xs text-smoke font-mono">Aturan filtering lalu lintas masuk (Inbound Traffic).</p>
+            </div>
+            <button onclick="openAddUfwRuleModal()" class="pill-btn-lake text-xs flex-shrink-0">
+              <i class="fa-solid fa-plus text-[10px]"></i>
+              <span>+ Tambah Rule</span>
+            </button>
+          </div>
+
+          <div class="overflow-x-auto rounded-2xl -mx-4 sm:mx-0 px-4 sm:px-0">
+            <table class="w-full text-left text-xs font-mono whitespace-nowrap">
+              <thead class="bg-black/[0.03] dark:bg-white/[0.04] text-smoke uppercase">
+                <tr>
+                  <th class="py-3 px-4 rounded-l-xl">#</th>
+                  <th class="py-3 px-4">Target (Port / Service)</th>
+                  <th class="py-3 px-4">Aksi</th>
+                  <th class="py-3 px-4">Dari Sumber (IP / Subnet)</th>
+                  <th class="py-3 px-4 text-right rounded-r-xl">Hapus</th>
+                </tr>
+              </thead>
+              <tbody id="netUfwTableBody">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Section 3: Active Connections -->
+        <div class="clean-card p-4 sm:p-7 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 class="text-2xl font-editorial">Active TCP Connections</h3>
+              <p class="text-xs text-smoke font-mono">Koneksi klien eksternal yang sedang terhubung ke server ini.</p>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto rounded-2xl -mx-4 sm:mx-0 px-4 sm:px-0">
+            <table class="w-full text-left text-xs font-mono whitespace-nowrap">
+              <thead class="bg-black/[0.03] dark:bg-white/[0.04] text-smoke uppercase">
+                <tr>
+                  <th class="py-3 px-4 rounded-l-xl">Client IP</th>
+                  <th class="py-3 px-4">Remote Port</th>
+                  <th class="py-3 px-4">Local Port</th>
+                  <th class="py-3 px-4">Status</th>
+                  <th class="py-3 px-4 text-right rounded-r-xl">Tindakan Cepat</th>
+                </tr>
+              </thead>
+              <tbody id="netConnsTableBody">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: LIVE LOG STREAM -->
+      <div id="tabContent-logs" class="hidden space-y-4">
+        <div class="clean-card p-4 sm:p-7 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="text-2xl font-editorial">Real-Time Log Streamer</h3>
+                <span id="logStreamStatusBadge" class="pill-tag bg-smoke/20 text-smoke text-[10px]">
+                  <span class="w-2 h-2 rounded-full bg-smoke inline-block mr-1"></span>IDLE
+                </span>
+              </div>
+              <p class="text-xs text-smoke font-mono">Streaming file log sistem dan aplikasi secara live via WebSocket (tail -f).</p>
+            </div>
+          </div>
+
+          <!-- Controls Toolbar -->
+          <div class="p-3.5 bg-black/[0.02] dark:bg-white/[0.03] rounded-2xl flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-2 flex-1">
+              <!-- Preset Selector -->
+              <select id="logTargetSelect" onchange="onLogTargetSelected(this.value)" class="text-xs font-mono bg-white dark:bg-darkCard border border-black/[0.06] dark:border-white/[0.08] rounded-full px-3 py-2 text-offblack dark:text-parchment focus:outline-none focus:border-lake">
+                <option value="/var/log/syslog">/var/log/syslog (System Log)</option>
+                <option value="/var/log/auth.log">/var/log/auth.log (Auth/SSH)</option>
+                <option value="/var/log/nginx/access.log">/var/log/nginx/access.log</option>
+                <option value="/var/log/nginx/error.log">/var/log/nginx/error.log</option>
+                <option value="__custom__">-- Kustom File Path... --</option>
+              </select>
+
+              <input type="text" id="logCustomPathInput" placeholder="/path/to/app.log" class="text-xs bg-white dark:bg-darkCard border border-black/[0.06] dark:border-white/[0.08] rounded-full px-3 py-2 font-mono text-offblack dark:text-parchment w-48 sm:w-64 focus:outline-none focus:border-lake hidden">
+
+              <select id="logInitialLinesSelect" class="text-xs font-mono bg-white dark:bg-darkCard border border-black/[0.06] dark:border-white/[0.08] rounded-full px-3 py-2 text-smoke focus:outline-none">
+                <option value="50">50 baris</option>
+                <option value="100" selected>100 baris</option>
+                <option value="200">200 baris</option>
+                <option value="500">500 baris</option>
+              </select>
+
+              <!-- Start / Stop Button -->
+              <button onclick="toggleLogStream()" id="btnToggleLogStream" class="pill-btn-lake text-xs">
+                <i class="fa-solid fa-play text-[10px]" id="iconLogStream"></i>
+                <span id="textLogStream">Mulai Stream</span>
+              </button>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <!-- Live Grep Filter -->
+              <input type="text" id="logFilterInput" oninput="applyLogClientFilter()" placeholder="Filter text (e.g. error, 404)..." class="text-xs bg-white dark:bg-darkCard border border-black/[0.06] dark:border-white/[0.08] rounded-full px-3 py-2 font-mono text-offblack dark:text-parchment w-36 sm:w-48 focus:outline-none focus:border-lake">
+
+              <!-- Auto-Scroll Switch -->
+              <label class="inline-flex items-center gap-1.5 text-xs font-mono text-smoke cursor-pointer select-none">
+                <input type="checkbox" id="logAutoScrollCheck" checked class="rounded border-black/[0.1] text-lake focus:ring-0">
+                <span>Auto-Scroll</span>
+              </label>
+
+              <!-- Clear Screen -->
+              <button onclick="clearLogConsole()" class="pill-btn-ghost text-xs py-2 px-3" title="Bersihkan Layar">
+                <i class="fa-solid fa-eraser"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Console Window -->
+          <div class="relative rounded-2xl overflow-hidden border border-black/[0.06] dark:border-white/[0.08] bg-[#121214] text-parchment">
+            <div class="flex items-center justify-between px-4 py-2 border-b border-white/[0.06] bg-black/40 text-[11px] font-mono text-smoke">
+              <span id="logConsoleHeaderTitle">STREAM CONSOLE // IDLE</span>
+              <span id="logLinesCountBadge">0 baris</span>
+            </div>
+            <div id="logConsoleOutput" class="p-3 sm:p-4 font-mono text-[11px] sm:text-xs overflow-y-auto max-h-[550px] min-h-[380px] space-y-0.5 leading-relaxed selection:bg-lake selection:text-white">
+              <div class="text-smoke italic">// Pilih file log dan klik 'Mulai Stream' untuk memantau log secara real-time...</div>
+            </div>
           </div>
         </div>
       </div>
@@ -1208,6 +1476,195 @@
     </div>
   </div>
 
+  <!-- MODAL: ADD / EDIT COMMAND PRESET -->
+  <div id="modalAddPreset" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-white dark:bg-darkCard rounded-[28px] sm:rounded-[36px] p-5 sm:p-7 space-y-5 shadow-2xl relative border border-black/[0.06] dark:border-white/[0.08] max-h-[90vh] overflow-y-auto">
+      <button onclick="closeModal('modalAddPreset')" class="absolute top-5 right-5 text-smoke hover:text-offblack dark:hover:text-white p-1">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <div>
+        <div class="pill-tag bg-sky/20 text-lake dark:text-sky text-[10px]">RUNBOOK RECIPE</div>
+        <h3 class="text-2xl sm:text-3xl font-editorial mt-2" id="modalPresetTitle">Tambah Preset Command</h3>
+        <p class="text-xs text-smoke font-mono mt-1">Simpan perintah bash yang sering dijalankan untuk eksekusi 1-klik.</p>
+      </div>
+
+      <input type="hidden" id="editPresetId">
+
+      <div class="space-y-3 text-xs font-mono">
+        <div>
+          <label class="uppercase text-smoke block mb-1">Nama Preset</label>
+          <input type="text" id="presetNameInput" placeholder="e.g. Restart MT5 Bot" class="w-full bg-black/[0.02] dark:bg-darkCanvas border border-black/[0.08] dark:border-white/[0.08] rounded-xl px-3.5 py-2 text-offblack dark:text-parchment focus:outline-none focus:border-lake">
+        </div>
+
+        <div>
+          <label class="uppercase text-smoke block mb-1">Kategori</label>
+          <select id="presetCategoryInput" class="w-full bg-black/[0.02] dark:bg-darkCanvas border border-black/[0.08] dark:border-white/[0.08] rounded-xl px-3.5 py-2 text-offblack dark:text-parchment focus:outline-none">
+            <option value="General">General</option>
+            <option value="System">System</option>
+            <option value="Maintenance">Maintenance</option>
+            <option value="Network">Network</option>
+            <option value="App">App</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="uppercase text-smoke block mb-1">Perintah Bash</label>
+          <textarea id="presetCommandInput" rows="3" placeholder="e.g. systemctl restart mt5-trading" class="w-full bg-black/[0.02] dark:bg-darkCanvas border border-black/[0.08] dark:border-white/[0.08] rounded-xl p-3 text-offblack dark:text-parchment focus:outline-none focus:border-lake resize-none"></textarea>
+        </div>
+
+        <div>
+          <label class="uppercase text-smoke block mb-1">Deskripsi Singkat (Opsional)</label>
+          <input type="text" id="presetDescInput" placeholder="e.g. Me-restart service bot trading MT5" class="w-full bg-black/[0.02] dark:bg-darkCanvas border border-black/[0.08] dark:border-white/[0.08] rounded-xl px-3.5 py-2 text-offblack dark:text-parchment focus:outline-none focus:border-lake">
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button onclick="closeModal('modalAddPreset')" class="pill-btn-ghost text-xs">Batal</button>
+        <button onclick="submitPresetForm()" class="pill-btn-lake text-xs">
+          <span>Simpan Preset ▸</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD CRON JOB -->
+  <div id="modalAddCron" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="w-full max-w-lg bg-white dark:bg-darkCard rounded-[28px] sm:rounded-[36px] p-5 sm:p-7 space-y-5 shadow-2xl relative border border-black/[0.06] dark:border-white/[0.08] max-h-[90vh] overflow-y-auto">
+      <button onclick="closeModal('modalAddCron')" class="absolute top-5 right-5 text-smoke hover:text-offblack dark:hover:text-white p-1">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <div>
+        <div class="pill-tag bg-mint/20 text-offblack dark:text-mint text-[10px]">TASK SCHEDULER</div>
+        <h3 class="text-2xl sm:text-3xl font-editorial mt-2">Tambah Cron Job</h3>
+        <p class="text-xs text-smoke font-mono mt-1">Jadwalkan eksekusi otomatis pada server Linux ini.</p>
+      </div>
+
+      <!-- Quick Preset Buttons -->
+      <div class="space-y-1.5">
+        <label class="text-[11px] uppercase text-smoke font-mono block">Preset Waktu Cepat</label>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs font-mono">
+          <button type="button" onclick="applyCronPreset('* * * * *', 'Setiap menit')" class="p-2 rounded-xl border border-black/[0.06] dark:border-white/[0.08] hover:border-lake text-left">
+            <span class="font-medium text-offblack dark:text-parchment block">Setiap Menit</span>
+            <span class="text-[10px] text-smoke">* * * * *</span>
+          </button>
+          <button type="button" onclick="applyCronPreset('*/5 * * * *', 'Setiap 5 menit')" class="p-2 rounded-xl border border-black/[0.06] dark:border-white/[0.08] hover:border-lake text-left">
+            <span class="font-medium text-offblack dark:text-parchment block">Setiap 5 Menit</span>
+            <span class="text-[10px] text-smoke">*/5 * * * *</span>
+          </button>
+          <button type="button" onclick="applyCronPreset('0 * * * *', 'Setiap jam')" class="p-2 rounded-xl border border-black/[0.06] dark:border-white/[0.08] hover:border-lake text-left">
+            <span class="font-medium text-offblack dark:text-parchment block">Setiap Jam</span>
+            <span class="text-[10px] text-smoke">0 * * * *</span>
+          </button>
+          <button type="button" onclick="applyCronPreset('0 0 * * *', 'Setiap hari tengah malam')" class="p-2 rounded-xl border border-black/[0.06] dark:border-white/[0.08] hover:border-lake text-left">
+            <span class="font-medium text-offblack dark:text-parchment block">Harian (00:00)</span>
+            <span class="text-[10px] text-smoke">0 0 * * *</span>
+          </button>
+          <button type="button" onclick="applyCronPreset('0 0 * * 0', 'Setiap hari Minggu')" class="p-2 rounded-xl border border-black/[0.06] dark:border-white/[0.08] hover:border-lake text-left">
+            <span class="font-medium text-offblack dark:text-parchment block">Mingguan (Minggu)</span>
+            <span class="text-[10px] text-smoke">0 0 * * 0</span>
+          </button>
+          <button type="button" onclick="applyCronPreset('0 0 1 * *', 'Setiap awal bulan')" class="p-2 rounded-xl border border-black/[0.06] dark:border-white/[0.08] hover:border-lake text-left">
+            <span class="font-medium text-offblack dark:text-parchment block">Bulanan (Tgl 1)</span>
+            <span class="text-[10px] text-smoke">0 0 1 * *</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="space-y-3 text-xs font-mono">
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="uppercase text-smoke">Ekspresi Jadwal Cron (5 bagian)</label>
+            <span id="cronHumanPreview" class="text-lake dark:text-sky text-[11px]">Setiap hari tengah malam (00:00)</span>
+          </div>
+          <input type="text" id="cronScheduleInput" value="0 0 * * *" oninput="updateCronPreview(this.value)" placeholder="* * * * *" class="w-full bg-black/[0.02] dark:bg-darkCanvas border border-black/[0.08] dark:border-white/[0.08] rounded-xl px-3.5 py-2 text-offblack dark:text-parchment focus:outline-none focus:border-lake font-bold">
+        </div>
+
+        <div>
+          <label class="uppercase text-smoke block mb-1">Perintah Bash yang Dijalankan</label>
+          <input type="text" id="cronCommandInput" placeholder="/root/scripts/backup.sh" class="w-full bg-black/[0.02] dark:bg-darkCanvas border border-black/[0.08] dark:border-white/[0.08] rounded-xl px-3.5 py-2 text-offblack dark:text-parchment focus:outline-none focus:border-lake">
+        </div>
+
+        <div>
+          <label class="uppercase text-smoke block mb-1">Deskripsi / Catatan (Opsional)</label>
+          <input type="text" id="cronCommentInput" placeholder="Auto backup database harian" class="w-full bg-black/[0.02] dark:bg-darkCanvas border border-black/[0.08] dark:border-white/[0.08] rounded-xl px-3.5 py-2 text-offblack dark:text-parchment focus:outline-none focus:border-lake">
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button onclick="closeModal('modalAddCron')" class="pill-btn-ghost text-xs">Batal</button>
+        <button onclick="submitAddCron()" class="pill-btn-lake text-xs">
+          <span>Tambahkan Jadwal ▸</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD UFW FIREWALL RULE -->
+  <div id="modalAddUfwRule" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-white dark:bg-darkCard rounded-[28px] sm:rounded-[36px] p-5 sm:p-7 space-y-5 shadow-2xl relative border border-black/[0.06] dark:border-white/[0.08] max-h-[90vh] overflow-y-auto">
+      <button onclick="closeModal('modalAddUfwRule')" class="absolute top-5 right-5 text-smoke hover:text-offblack dark:hover:text-white p-1">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <div>
+        <div class="pill-tag bg-lake/15 text-lake dark:text-sky text-[10px]">FIREWALL RULE</div>
+        <h3 class="text-2xl sm:text-3xl font-editorial mt-2">Tambah Aturan UFW</h3>
+        <p class="text-xs text-smoke font-mono mt-1">Konfigurasi izin atau blokir lalu lintas port jaringan.</p>
+      </div>
+
+      <div class="space-y-3 text-xs font-mono">
+        <div>
+          <label class="uppercase text-smoke block mb-1">Aksi Firewall</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="flex items-center gap-2 p-2.5 rounded-xl border border-black/[0.06] dark:border-white/[0.08] cursor-pointer hover:border-mint">
+              <input type="radio" name="ufwActionRadio" value="allow" checked class="text-mint focus:ring-0">
+              <div>
+                <span class="font-medium text-mint block">ALLOW</span>
+                <span class="text-[10px] text-smoke">Izinkan akses masuk</span>
+              </div>
+            </label>
+            <label class="flex items-center gap-2 p-2.5 rounded-xl border border-black/[0.06] dark:border-white/[0.08] cursor-pointer hover:border-coral">
+              <input type="radio" name="ufwActionRadio" value="deny" class="text-coral focus:ring-0">
+              <div>
+                <span class="font-medium text-coral block">DENY (BLOKIR)</span>
+                <span class="text-[10px] text-smoke">Tolak koneksi</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="uppercase text-smoke block mb-1">Port atau Nomor Service</label>
+          <input type="text" id="ufwPortInput" placeholder="e.g. 80, 443, 3000, 8000" class="w-full bg-black/[0.02] dark:bg-darkCanvas border border-black/[0.08] dark:border-white/[0.08] rounded-xl px-3.5 py-2 text-offblack dark:text-parchment focus:outline-none focus:border-lake">
+        </div>
+
+        <div>
+          <label class="uppercase text-smoke block mb-1">Protokol</label>
+          <select id="ufwProtoInput" class="w-full bg-black/[0.02] dark:bg-darkCanvas border border-black/[0.08] dark:border-white/[0.08] rounded-xl px-3.5 py-2 text-offblack dark:text-parchment focus:outline-none">
+            <option value="tcp">TCP (Standar Web & SSH)</option>
+            <option value="udp">UDP (DNS / Wireguard)</option>
+            <option value="both">Both (TCP & UDP)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="uppercase text-smoke block mb-1">Dari Alamat IP Sumber (Opsional)</label>
+          <input type="text" id="ufwFromIpInput" placeholder="Kosongkan untuk 'Anywhere' (Semua IP)" class="w-full bg-black/[0.02] dark:bg-darkCanvas border border-black/[0.08] dark:border-white/[0.08] rounded-xl px-3.5 py-2 text-offblack dark:text-parchment focus:outline-none focus:border-lake">
+          <span class="text-[10px] text-smoke mt-0.5 block">Contoh untuk whitelist IP: 180.252.10.5</span>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button onclick="closeModal('modalAddUfwRule')" class="pill-btn-ghost text-xs">Batal</button>
+        <button onclick="submitAddUfwRule()" class="pill-btn-lake text-xs">
+          <span>Terapkan Rule ▸</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: SETTINGS & ALERTS -->
   <div id="modalSettings" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="w-full max-w-md bg-white dark:bg-darkCard rounded-[28px] sm:rounded-[36px] p-5 sm:p-7 space-y-5 shadow-2xl relative border border-black/[0.06] dark:border-white/[0.08] max-h-[90vh] overflow-y-auto">
@@ -1654,7 +2111,7 @@
     function switchTab(tabId) {
       if (!selectedNodeId) return;
       activeTab = tabId;
-      ['terminal', 'metrics', 'services', 'processes', 'commands', 'files', 'audit'].forEach(t => {
+      ['terminal', 'metrics', 'services', 'processes', 'commands', 'cron', 'network', 'logs', 'files', 'audit'].forEach(t => {
         const btn = document.getElementById(`tabBtn-${t}`);
         const content = document.getElementById(`tabContent-${t}`);
         if (!btn || !content) return;
@@ -1675,6 +2132,14 @@
         loadServices();
       } else if (tabId === 'processes') {
         loadProcesses();
+      } else if (tabId === 'commands') {
+        loadCommandPresets();
+      } else if (tabId === 'cron') {
+        loadCronJobs();
+      } else if (tabId === 'network') {
+        loadNetworkInfo();
+      } else if (tabId === 'logs') {
+        loadLogTargets();
       } else if (tabId === 'files') {
         loadDirectory(currentPath || '/root');
       } else if (tabId === 'audit') {
@@ -2187,6 +2652,798 @@
       } catch (e) {
         outArea.textContent = `[!] Execution failed: ${e}`;
       }
+    }
+
+    // =========================================================================
+    // FEATURE 2: RUNBOOK COMMAND PRESETS
+    // =========================================================================
+    let allPresets = [];
+    let currentPresetCategory = 'ALL';
+
+    async function loadCommandPresets() {
+      try {
+        const res = await fetch('/api/presets');
+        const data = await res.json();
+        allPresets = data.presets || [];
+        renderPresetsGrid();
+      } catch (e) {
+        console.error("Gagal memuat preset:", e);
+      }
+    }
+
+    function filterPresetsByCategory(cat) {
+      currentPresetCategory = cat;
+      ['ALL', 'System', 'Maintenance', 'Network', 'App'].forEach(c => {
+        const btn = document.getElementById(`presetCat-${c}`);
+        if (!btn) return;
+        if (c === cat) {
+          btn.className = 'pill-tag bg-lake text-white cursor-pointer px-3 py-1';
+        } else {
+          btn.className = 'pill-tag bg-black/[0.04] dark:bg-white/[0.06] text-smoke hover:text-offblack dark:hover:text-white cursor-pointer px-3 py-1';
+        }
+      });
+      renderPresetsGrid();
+    }
+
+    function renderPresetsGrid() {
+      const grid = document.getElementById('presetsGrid');
+      if (!grid) return;
+      const filtered = (currentPresetCategory === 'ALL')
+        ? allPresets
+        : allPresets.filter(p => p.category === currentPresetCategory);
+
+      if (filtered.length === 0) {
+        grid.innerHTML = '<div class="col-span-full py-6 text-center text-smoke text-xs font-mono">Belum ada preset pada kategori ini. Klik "+ Tambah Preset" untuk menambahkan.</div>';
+        return;
+      }
+
+      grid.innerHTML = filtered.map(p => {
+        const catBadgeColors = {
+          'System': 'bg-sky/20 text-lake dark:text-sky',
+          'Maintenance': 'bg-coral/20 text-coral',
+          'Network': 'bg-gold/20 text-offblack dark:text-gold',
+          'App': 'bg-mint/20 text-offblack dark:text-mint',
+          'General': 'bg-black/[0.05] dark:bg-white/[0.06] text-smoke'
+        };
+        const badgeColor = catBadgeColors[p.category] || 'bg-black/[0.05] text-smoke';
+        const safeCmd = (p.command || '').replace(/"/g, '&quot;').replace(/'/g, "\\'");
+        return `
+          <div class="p-3.5 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white/60 dark:bg-darkCard/60 hover:border-lake/40 transition flex flex-col justify-between gap-3">
+            <div>
+              <div class="flex items-start justify-between gap-2">
+                <span class="pill-tag text-[9px] ${badgeColor} uppercase font-semibold">${p.category || 'General'}</span>
+                <div class="flex items-center gap-1 text-smoke text-xs">
+                  <button onclick="openEditPresetModal(${p.id})" class="hover:text-offblack dark:hover:text-white p-1" title="Edit Preset"><i class="fa-regular fa-pen-to-square"></i></button>
+                  <button onclick="deletePreset(${p.id})" class="hover:text-coral p-1" title="Hapus Preset"><i class="fa-regular fa-trash-can"></i></button>
+                </div>
+              </div>
+              <h4 class="font-mono text-xs font-medium text-offblack dark:text-parchment mt-1.5">${p.name}</h4>
+              <p class="text-[11px] text-smoke font-mono line-clamp-2 mt-0.5">${p.description || '-'}</p>
+            </div>
+            <div class="pt-2 border-t border-black/[0.04] dark:border-white/[0.06] flex items-center justify-between gap-2">
+              <code class="text-[10px] text-lake dark:text-sky truncate font-mono max-w-[170px]" title="${safeCmd}">${p.command}</code>
+              <button onclick="runPresetCommand('${safeCmd}')" class="pill-btn-lake text-[10px] py-1 px-2.5 flex-shrink-0">
+                <i class="fa-solid fa-bolt text-[9px]"></i>
+                <span>Jalankan</span>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function runPresetCommand(cmd) {
+      document.getElementById('customCmdInput').value = cmd;
+      executeCustomCommand();
+      const out = document.getElementById('cmdOutputArea');
+      if (out) out.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function openAddPresetModal() {
+      document.getElementById('editPresetId').value = '';
+      document.getElementById('modalPresetTitle').textContent = 'Tambah Preset Command';
+      document.getElementById('presetNameInput').value = '';
+      document.getElementById('presetCategoryInput').value = 'General';
+      document.getElementById('presetCommandInput').value = '';
+      document.getElementById('presetDescInput').value = '';
+      openModal('modalAddPreset');
+    }
+
+    function openEditPresetModal(id) {
+      const p = allPresets.find(x => x.id === id);
+      if (!p) return;
+      document.getElementById('editPresetId').value = p.id;
+      document.getElementById('modalPresetTitle').textContent = 'Edit Preset Command';
+      document.getElementById('presetNameInput').value = p.name;
+      document.getElementById('presetCategoryInput').value = p.category || 'General';
+      document.getElementById('presetCommandInput').value = p.command;
+      document.getElementById('presetDescInput').value = p.description || '';
+      openModal('modalAddPreset');
+    }
+
+    function saveCurrentInputAsPreset() {
+      const cmd = document.getElementById('customCmdInput').value.trim();
+      if (!cmd) {
+        alert("Masukkan perintah bash terlebih dahulu.");
+        return;
+      }
+      openAddPresetModal();
+      document.getElementById('presetCommandInput').value = cmd;
+      document.getElementById('presetNameInput').value = cmd.split(' ')[0] + ' command';
+    }
+
+    async function submitPresetForm() {
+      const id = document.getElementById('editPresetId').value;
+      const name = document.getElementById('presetNameInput').value.trim();
+      const category = document.getElementById('presetCategoryInput').value;
+      const command = document.getElementById('presetCommandInput').value.trim();
+      const description = document.getElementById('presetDescInput').value.trim();
+
+      if (!name || !command) {
+        alert("Nama dan perintah preset harus diisi!");
+        return;
+      }
+
+      try {
+        const url = id ? `/api/presets/${id}` : '/api/presets';
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+          method,
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name, category, command, description})
+        });
+        const data = await res.json();
+        if (data.success) {
+          closeModal('modalAddPreset');
+          loadCommandPresets();
+        } else {
+          alert(data.detail || data.error || 'Gagal menyimpan preset.');
+        }
+      } catch (e) {
+        alert("Terjadi kesalahan jaringan: " + e.message);
+      }
+    }
+
+    async function deletePreset(id) {
+      if (!confirm("Hapus preset perintah ini?")) return;
+      try {
+        const res = await fetch(`/api/presets/${id}`, { method: 'DELETE' });
+        const d = await res.json();
+        if (d.success) {
+          loadCommandPresets();
+        } else {
+          alert(d.detail || 'Gagal menghapus preset.');
+        }
+      } catch (e) {
+        alert("Kesalahan: " + e.message);
+      }
+    }
+
+    // =========================================================================
+    // FEATURE 3: VISUAL CRONTAB TASK SCHEDULER
+    // =========================================================================
+    let allCronJobs = [];
+
+    async function loadCronJobs() {
+      if (!selectedNodeId) return;
+      const tbody = document.getElementById('cronTableBody');
+      tbody.innerHTML = '<tr><td colspan="5" class="py-6 text-center text-smoke"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Membaca daftar cron jobs...</td></tr>';
+
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/cron`);
+        const data = await res.json();
+        allCronJobs = data.jobs || [];
+        renderCronTable();
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="5" class="py-6 text-center text-coral">Gagal membaca crontab server.</td></tr>';
+      }
+    }
+
+    function renderCronTable() {
+      const tbody = document.getElementById('cronTableBody');
+      const badge = document.getElementById('cronTotalBadge');
+      badge.textContent = `${allCronJobs.length} JOBS`;
+
+      if (allCronJobs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="py-6 text-center text-smoke">Tidak ada cron job aktif pada server ini. Klik "+ Tambah Cron Job" untuk membuat baru.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = allCronJobs.map(j => {
+        const isEnabled = j.enabled;
+        const statusBadge = isEnabled
+          ? `<button onclick="toggleCronJob(${j.id}, false)" class="pill-tag bg-mint/20 text-offblack dark:text-mint text-[9px] font-semibold hover:opacity-80 transition" title="Klik untuk nonaktifkan"><i class="fa-solid fa-circle-check text-[9px]"></i> AKTIF</button>`
+          : `<button onclick="toggleCronJob(${j.id}, true)" class="pill-tag bg-smoke/20 text-smoke text-[9px] font-semibold hover:opacity-80 transition" title="Klik untuk aktifkan"><i class="fa-solid fa-circle-pause text-[9px]"></i> NONAKTIF</button>`;
+
+        const safeCmd = (j.command || '').replace(/"/g, '&quot;').replace(/'/g, "\\'");
+
+        return `
+          <tr class="border-b border-black/[0.03] dark:border-white/[0.04] hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition">
+            <td class="py-3 px-4">${statusBadge}</td>
+            <td class="py-3 px-4">
+              <div class="font-bold text-offblack dark:text-parchment">${j.schedule}</div>
+              <div class="text-[10px] text-lake dark:text-sky font-sans">${j.schedule_human || '-'}</div>
+            </td>
+            <td class="py-3 px-4 text-smoke max-w-xs truncate">${j.comment || '-'}</td>
+            <td class="py-3 px-4 font-mono text-[11px] text-offblack dark:text-parchment max-w-md truncate" title="${safeCmd}">
+              <code>${j.command}</code>
+            </td>
+            <td class="py-3 px-4 text-right">
+              <div class="flex items-center justify-end gap-1.5">
+                <button onclick="runCronNow('${safeCmd}')" class="pill-btn-ghost text-[10px] py-1 px-2.5 hover:text-lake" title="Uji Coba Eksekusi Sekarang">
+                  <i class="fa-solid fa-play text-[9px]"></i> Test Run
+                </button>
+                <button onclick="deleteCronJob(${j.id})" class="pill-btn-ghost text-[10px] py-1 px-2 text-coral hover:bg-coral/10" title="Hapus Cron Job">
+                  <i class="fa-regular fa-trash-can"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function toggleCronJob(jobId, enable) {
+      if (!selectedNodeId) return;
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/cron/toggle`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({job_id: jobId, enable})
+        });
+        const d = await res.json();
+        if (d.success) {
+          loadCronJobs();
+        } else {
+          alert(d.error || 'Gagal mengubah status cron.');
+        }
+      } catch (e) {
+        alert("Kesalahan jaringan: " + e.message);
+      }
+    }
+
+    async function deleteCronJob(jobId) {
+      if (!selectedNodeId) return;
+      if (!confirm("Hapus jadwal cron job ini dari server?")) return;
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/cron/${jobId}`, {
+          method: 'DELETE'
+        });
+        const d = await res.json();
+        if (d.success) {
+          loadCronJobs();
+        } else {
+          alert(d.error || 'Gagal menghapus cron job.');
+        }
+      } catch (e) {
+        alert("Kesalahan jaringan: " + e.message);
+      }
+    }
+
+    async function runCronNow(cmd) {
+      if (!selectedNodeId) return;
+      if (!confirm(`Jalankan tes eksekusi perintah ini sekarang?\n\n${cmd}`)) return;
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/cron/run`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({command: cmd})
+        });
+        const d = await res.json();
+        alert(`Status: ${d.success ? 'BERHASIL (Exit 0)' : 'GAGAL'}\nWaktu: ${d.elapsed || 0}s\n\nOutput:\n${d.stdout || d.stderr || '(tidak ada output)'}`);
+      } catch (e) {
+        alert("Gagal menjalankan tes: " + e.message);
+      }
+    }
+
+    function openAddCronModal() {
+      document.getElementById('cronScheduleInput').value = '0 0 * * *';
+      document.getElementById('cronHumanPreview').textContent = 'Setiap hari tengah malam (00:00)';
+      document.getElementById('cronCommandInput').value = '';
+      document.getElementById('cronCommentInput').value = '';
+      openModal('modalAddCron');
+    }
+
+    function applyCronPreset(sched, human) {
+      document.getElementById('cronScheduleInput').value = sched;
+      document.getElementById('cronHumanPreview').textContent = human;
+    }
+
+    function updateCronPreview(sched) {
+      const parts = sched.trim().split(/\s+/);
+      const previewEl = document.getElementById('cronHumanPreview');
+      if (parts.length !== 5) {
+        previewEl.textContent = 'Format harus 5 bagian (menit jam hari bulan hari_dalam_minggu)';
+        return;
+      }
+      if (sched === '* * * * *') previewEl.textContent = 'Setiap menit';
+      else if (sched === '*/5 * * * *') previewEl.textContent = 'Setiap 5 menit';
+      else if (sched === '0 * * * *') previewEl.textContent = 'Setiap jam';
+      else if (sched === '0 0 * * *') previewEl.textContent = 'Setiap hari tengah malam (00:00)';
+      else if (sched === '0 0 * * 0') previewEl.textContent = 'Setiap hari Minggu (00:00)';
+      else previewEl.textContent = `Jadwal kustom (${sched})`;
+    }
+
+    async function submitAddCron() {
+      if (!selectedNodeId) return;
+      const schedule = document.getElementById('cronScheduleInput').value.trim();
+      const command = document.getElementById('cronCommandInput').value.trim();
+      const comment = document.getElementById('cronCommentInput').value.trim();
+
+      if (!schedule || !command) {
+        alert("Jadwal dan perintah wajib diisi!");
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/cron`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({schedule, command, comment})
+        });
+        const d = await res.json();
+        if (d.success) {
+          closeModal('modalAddCron');
+          loadCronJobs();
+        } else {
+          alert(d.error || 'Gagal menambahkan cron job.');
+        }
+      } catch (e) {
+        alert("Kesalahan jaringan: " + e.message);
+      }
+    }
+
+    // =========================================================================
+    // FEATURE 4: NETWORK & SECURITY MONITOR (PORTS & UFW FIREWALL)
+    // =========================================================================
+    let currentNetData = { ports: [], connections: [], ufw: { active: false, rules: [] } };
+
+    async function loadNetworkInfo() {
+      if (!selectedNodeId) return;
+      const portsTbody = document.getElementById('netPortsTableBody');
+      const ufwTbody = document.getElementById('netUfwTableBody');
+      const connsTbody = document.getElementById('netConnsTableBody');
+
+      portsTbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-smoke"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Memindai port terbuka...</td></tr>';
+
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/network`);
+        const data = await res.json();
+        currentNetData = data;
+        renderPortsTable();
+        renderUfwSection();
+        renderConnsTable();
+      } catch (e) {
+        portsTbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-coral">Gagal mengambil data jaringan server.</td></tr>';
+      }
+    }
+
+    function renderPortsTable(filterText = '') {
+      const tbody = document.getElementById('netPortsTableBody');
+      const ports = currentNetData.ports || [];
+      const publicPorts = ports.filter(p => p.is_public);
+
+      document.getElementById('netOpenPortsCount').textContent = ports.length;
+      document.getElementById('netPublicPortsCount').textContent = `${publicPorts.length} Public Exposed`;
+
+      const q = filterText.toLowerCase();
+      const filtered = q
+        ? ports.filter(p => `${p.port}`.includes(q) || (p.process || '').toLowerCase().includes(q) || (p.ip || '').includes(q))
+        : ports;
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-smoke">Tidak ada port yang cocok dengan pencarian.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(p => {
+        const isPub = p.is_public;
+        const accessBadge = isPub
+          ? '<span class="pill-tag bg-coral/20 text-coral text-[9px] font-semibold"><i class="fa-solid fa-globe text-[8px]"></i> PUBLIC INTERNET</span>'
+          : '<span class="pill-tag bg-mint/20 text-offblack dark:text-mint text-[9px] font-semibold"><i class="fa-solid fa-lock text-[8px]"></i> LOCALHOST ONLY</span>';
+
+        return `
+          <tr class="border-b border-black/[0.03] dark:border-white/[0.04] hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition">
+            <td class="py-3 px-4 font-bold text-sm text-lake dark:text-sky">:${p.port}</td>
+            <td class="py-3 px-4 uppercase text-smoke">${p.proto}</td>
+            <td class="py-3 px-4">${accessBadge}</td>
+            <td class="py-3 px-4 text-smoke">${p.ip}</td>
+            <td class="py-3 px-4 font-mono font-medium text-offblack dark:text-parchment">
+              ${p.process || '-'} ${p.pid ? `<span class="text-smoke text-[10px] font-normal">(PID ${p.pid})</span>` : ''}
+            </td>
+            <td class="py-3 px-4 text-right">
+              <button onclick="openAddUfwRuleModal('${p.port}')" class="pill-btn-ghost text-[10px] py-1 px-2.5">
+                <i class="fa-solid fa-shield-halved text-[9px] text-lake"></i> Atur di UFW
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function filterPortsTable() {
+      const q = document.getElementById('netPortSearchInput').value;
+      renderPortsTable(q);
+    }
+
+    function renderUfwSection() {
+      const ufw = currentNetData.ufw || {};
+      const statusText = document.getElementById('netUfwStatusText');
+      const statusDot = document.getElementById('netUfwStatusDot');
+      const rulesCount = document.getElementById('netUfwRulesCount');
+      const btnToggle = document.getElementById('btnToggleUfw');
+      const tbody = document.getElementById('netUfwTableBody');
+
+      if (!ufw.installed) {
+        statusText.textContent = 'TIDAK TERPASANG';
+        statusDot.className = 'w-2.5 h-2.5 rounded-full bg-smoke';
+        rulesCount.textContent = 'UFW Not Installed';
+        btnToggle.classList.add('hidden');
+        tbody.innerHTML = '<tr><td colspan="5" class="py-6 text-center text-smoke">UFW (Uncomplicated Firewall) tidak terdeteksi pada node ini.</td></tr>';
+        return;
+      }
+
+      btnToggle.classList.remove('hidden');
+      const isActive = ufw.active;
+      statusText.textContent = isActive ? 'AKTIF (PROTECTED)' : 'NONAKTIF (DISABLED)';
+      statusText.className = `text-xl sm:text-2xl font-editorial ${isActive ? 'text-mint' : 'text-coral'}`;
+      statusDot.className = `w-2.5 h-2.5 rounded-full ${isActive ? 'bg-mint animate-pulse' : 'bg-coral'}`;
+      btnToggle.innerHTML = isActive ? '<span>Matikan UFW</span>' : '<span class="text-mint font-semibold">Aktifkan UFW</span>';
+
+      const rules = ufw.rules || [];
+      rulesCount.textContent = `${rules.length} Rules Defined`;
+
+      if (rules.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="py-6 text-center text-smoke">Belum ada aturan filtering pada UFW.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = rules.map(r => {
+        const isAllow = (r.action || '').toUpperCase().includes('ALLOW');
+        const actionBadge = isAllow
+          ? '<span class="pill-tag bg-mint/20 text-offblack dark:text-mint text-[9px] font-semibold">ALLOW</span>'
+          : '<span class="pill-tag bg-coral/20 text-coral text-[9px] font-semibold">DENY / BLOCK</span>';
+
+        return `
+          <tr class="border-b border-black/[0.03] dark:border-white/[0.04] hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition">
+            <td class="py-3 px-4 text-smoke">${r.num}</td>
+            <td class="py-3 px-4 font-bold text-offblack dark:text-parchment">${r.to}</td>
+            <td class="py-3 px-4">${actionBadge}</td>
+            <td class="py-3 px-4 text-smoke">${r.from}</td>
+            <td class="py-3 px-4 text-right">
+              <button onclick="deleteUfwRule(${r.num})" class="pill-btn-ghost text-[10px] py-1 px-2 text-coral hover:bg-coral/10" title="Hapus Rule">
+                <i class="fa-regular fa-trash-can"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderConnsTable() {
+      const conns = currentNetData.connections || [];
+      const tbody = document.getElementById('netConnsTableBody');
+      document.getElementById('netActiveConnsCount').textContent = conns.length;
+
+      if (conns.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="py-6 text-center text-smoke">Tidak ada koneksi TCP aktif dari klien luar saat ini.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = conns.map(c => {
+        return `
+          <tr class="border-b border-black/[0.03] dark:border-white/[0.04] hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition">
+            <td class="py-3 px-4 font-mono font-bold text-lake dark:text-sky">${c.remote_ip}</td>
+            <td class="py-3 px-4 text-smoke">:${c.remote_port}</td>
+            <td class="py-3 px-4 font-mono">:${c.local_port}</td>
+            <td class="py-3 px-4"><span class="pill-tag bg-mint/20 text-offblack dark:text-mint text-[9px]">ESTABLISHED</span></td>
+            <td class="py-3 px-4 text-right">
+              <button onclick="quickBlockClientIp('${c.remote_ip}')" class="pill-btn-ghost text-[10px] py-1 px-2 text-coral hover:bg-coral/10">
+                <i class="fa-solid fa-ban text-[9px]"></i> Blokir IP
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function toggleUfwState() {
+      if (!selectedNodeId) return;
+      const ufw = currentNetData.ufw || {};
+      const action = ufw.active ? 'disable' : 'enable';
+      if (!confirm(`Yakin ingin me-${action.toUpperCase()} firewall UFW pada server ini?`)) return;
+
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/network/ufw/action`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({action})
+        });
+        const d = await res.json();
+        alert(d.message || 'Status UFW berhasil diubah!');
+        loadNetworkInfo();
+      } catch (e) {
+        alert("Gagal mengubah status UFW: " + e.message);
+      }
+    }
+
+    function openAddUfwRuleModal(defaultPort = '') {
+      document.getElementById('ufwPortInput').value = defaultPort || '';
+      document.getElementById('ufwFromIpInput').value = '';
+      openModal('modalAddUfwRule');
+    }
+
+    async function submitAddUfwRule() {
+      if (!selectedNodeId) return;
+      const action = document.querySelector('input[name="ufwActionRadio"]:checked')?.value || 'allow';
+      const port = document.getElementById('ufwPortInput').value.trim();
+      const proto = document.getElementById('ufwProtoInput').value;
+      const from_ip = document.getElementById('ufwFromIpInput').value.trim();
+
+      if (!port && !from_ip) {
+        alert("Harap isi Port atau Alamat IP sumber.");
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/network/ufw/action`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({action, port, proto, from_ip})
+        });
+        const d = await res.json();
+        if (d.success) {
+          closeModal('modalAddUfwRule');
+          loadNetworkInfo();
+        } else {
+          alert(d.error || 'Gagal menerapkan aturan UFW.');
+        }
+      } catch (e) {
+        alert("Kesalahan: " + e.message);
+      }
+    }
+
+    async function deleteUfwRule(ruleNum) {
+      if (!selectedNodeId) return;
+      if (!confirm(`Hapus aturan firewall nomor #${ruleNum}?`)) return;
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/network/ufw/action`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({action: 'delete', rule_num: ruleNum})
+        });
+        const d = await res.json();
+        if (d.success) {
+          loadNetworkInfo();
+        } else {
+          alert(d.error || 'Gagal menghapus aturan firewall.');
+        }
+      } catch (e) {
+        alert("Kesalahan: " + e.message);
+      }
+    }
+
+    function quickBlockClientIp(ip) {
+      if (!confirm(`Apakah Anda yakin ingin memblokir IP ${ip} dari server ini menggunakan UFW?`)) return;
+      fetch(`/api/nodes/${selectedNodeId}/network/ufw/action`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'deny', from_ip: ip})
+      }).then(r => r.json()).then(d => {
+        alert(d.message || `IP ${ip} berhasil diblokir!`);
+        loadNetworkInfo();
+      }).catch(err => alert("Gagal memblokir IP: " + err.message));
+    }
+
+    // =========================================================================
+    // FEATURE 5: LIVE LOG STREAMING / REAL-TIME LOG TAILER
+    // =========================================================================
+    let logWs = null;
+    let logLinesCount = 0;
+    let isLogStreaming = false;
+
+    async function loadLogTargets() {
+      if (!selectedNodeId) return;
+      try {
+        const res = await fetch(`/api/nodes/${selectedNodeId}/logs/targets`);
+        const d = await res.json();
+        const targets = d.targets || [];
+        const select = document.getElementById('logTargetSelect');
+        select.innerHTML = '';
+        targets.forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = t.path;
+          opt.textContent = `${t.path} (${t.name})`;
+          select.appendChild(opt);
+        });
+        const customOpt = document.createElement('option');
+        customOpt.value = '__custom__';
+        customOpt.textContent = '-- Kustom File Path... --';
+        select.appendChild(customOpt);
+      } catch (e) {
+        console.error("Gagal memuat target log:", e);
+      }
+    }
+
+    function onLogTargetSelected(val) {
+      const customInput = document.getElementById('logCustomPathInput');
+      if (val === '__custom__') {
+        customInput.classList.remove('hidden');
+        customInput.focus();
+      } else {
+        customInput.classList.add('hidden');
+      }
+    }
+
+    function toggleLogStream() {
+      if (isLogStreaming) {
+        stopLogStream();
+      } else {
+        startLogStream();
+      }
+    }
+
+    function startLogStream() {
+      if (!selectedNodeId) return;
+      const selectVal = document.getElementById('logTargetSelect').value;
+      const path = (selectVal === '__custom__')
+        ? document.getElementById('logCustomPathInput').value.trim()
+        : selectVal;
+
+      if (!path) {
+        alert("Pilih atau masukkan path file log!");
+        return;
+      }
+
+      const lines = parseInt(document.getElementById('logInitialLinesSelect').value) || 100;
+      clearLogConsole();
+
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws/log-tail/${selectedNodeId}`;
+
+      logWs = new WebSocket(wsUrl);
+
+      const statusBadge = document.getElementById('logStreamStatusBadge');
+      const headerTitle = document.getElementById('logConsoleHeaderTitle');
+      const btnToggle = document.getElementById('btnToggleLogStream');
+      const icon = document.getElementById('iconLogStream');
+      const text = document.getElementById('textLogStream');
+
+      logWs.onopen = () => {
+        isLogStreaming = true;
+        statusBadge.className = 'pill-tag bg-mint/20 text-offblack dark:text-mint text-[10px] animate-pulse';
+        statusBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-mint inline-block mr-1"></span>LIVE STREAMING';
+        headerTitle.textContent = `STREAMING // ${path}`;
+        btnToggle.className = 'pill-btn-ghost text-xs text-coral hover:bg-coral/10';
+        icon.className = 'fa-solid fa-stop text-[10px]';
+        text.textContent = 'Berhenti Stream';
+
+        logWs.send(JSON.stringify({
+          action: 'start',
+          path: path,
+          lines: lines
+        }));
+      };
+
+      logWs.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'log_data' && data.data) {
+            appendLogChunk(data.data);
+          } else if (data.type === 'error') {
+            appendLogChunk(`\n[!] Error: ${data.error}\n`);
+          }
+        } catch (err) {
+          appendLogChunk(event.data);
+        }
+      };
+
+      logWs.onerror = () => {
+        stopLogStream();
+      };
+
+      logWs.onclose = () => {
+        stopLogStream();
+      };
+    }
+
+    function stopLogStream() {
+      isLogStreaming = false;
+      if (logWs) {
+        try {
+          logWs.send(JSON.stringify({action: 'stop'}));
+          logWs.close();
+        } catch (e) {}
+        logWs = null;
+      }
+
+      const statusBadge = document.getElementById('logStreamStatusBadge');
+      const headerTitle = document.getElementById('logConsoleHeaderTitle');
+      const btnToggle = document.getElementById('btnToggleLogStream');
+      const icon = document.getElementById('iconLogStream');
+      const text = document.getElementById('textLogStream');
+
+      if (statusBadge) {
+        statusBadge.className = 'pill-tag bg-smoke/20 text-smoke text-[10px]';
+        statusBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-smoke inline-block mr-1"></span>IDLE';
+      }
+      if (headerTitle) headerTitle.textContent = 'STREAM CONSOLE // BERHENTI';
+      if (btnToggle) {
+        btnToggle.className = 'pill-btn-lake text-xs';
+        icon.className = 'fa-solid fa-play text-[10px]';
+        text.textContent = 'Mulai Stream';
+      }
+    }
+
+    function appendLogChunk(rawText) {
+      const container = document.getElementById('logConsoleOutput');
+      if (!container) return;
+      const lines = rawText.split('\n');
+      const filter = (document.getElementById('logFilterInput').value || '').toLowerCase();
+      const autoScroll = document.getElementById('logAutoScrollCheck').checked;
+
+      lines.forEach(line => {
+        if (!line.trim() && lines.length === 1) return;
+        logLinesCount++;
+        const div = document.createElement('div');
+        div.className = 'hover:bg-white/[0.04] px-1 py-0.5 rounded break-all whitespace-pre-wrap';
+        if (filter && !line.toLowerCase().includes(filter)) {
+          div.classList.add('hidden');
+        }
+        div.setAttribute('data-log-text', line.toLowerCase());
+        div.innerHTML = colorizeLogLine(line);
+        container.appendChild(div);
+      });
+
+      document.getElementById('logLinesCountBadge').textContent = `${logLinesCount} baris`;
+
+      // Limit buffer to 1200 lines to avoid browser DOM lag
+      while (container.childNodes.length > 1200) {
+        container.removeChild(container.firstChild);
+      }
+
+      if (autoScroll) {
+        container.scrollTop = container.scrollHeight;
+      }
+    }
+
+    function colorizeLogLine(text) {
+      let escaped = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      // Colorize ERROR / FATAL / CRITICAL
+      escaped = escaped.replace(/\b(ERROR|FATAL|CRITICAL|FAIL|FAILED|Exception)\b/g, '<span class="text-coral font-bold bg-coral/10 px-1 rounded">$1</span>');
+      // Colorize WARN / WARNING
+      escaped = escaped.replace(/\b(WARN|WARNING)\b/g, '<span class="text-gold font-bold bg-gold/10 px-1 rounded">$1</span>');
+      // Colorize INFO / NOTICE
+      escaped = escaped.replace(/\b(INFO|NOTICE)\b/g, '<span class="text-sky font-semibold">$1</span>');
+      // Colorize SUCCESS / OK
+      escaped = escaped.replace(/\b(SUCCESS|OK|200 OK)\b/g, '<span class="text-mint font-semibold">$1</span>');
+
+      return escaped;
+    }
+
+    function applyLogClientFilter() {
+      const q = (document.getElementById('logFilterInput').value || '').toLowerCase();
+      const container = document.getElementById('logConsoleOutput');
+      if (!container) return;
+      Array.from(container.children).forEach(el => {
+        const text = el.getAttribute('data-log-text') || '';
+        if (!q || text.includes(q)) {
+          el.classList.remove('hidden');
+        } else {
+          el.classList.add('hidden');
+        }
+      });
+    }
+
+    function clearLogConsole() {
+      const container = document.getElementById('logConsoleOutput');
+      if (container) container.innerHTML = '';
+      logLinesCount = 0;
+      document.getElementById('logLinesCountBadge').textContent = '0 baris';
     }
 
     // =========================================================================
@@ -3003,7 +4260,7 @@
 
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-          ['modalFileEditor', 'modalFileUpload', 'modalFileExtract', 'modalFileCompress', 'modalRenameNode', 'modalSettings', 'modalAddNode'].forEach(id => closeModal(id));
+          ['modalFileEditor', 'modalFileUpload', 'modalFileExtract', 'modalFileCompress', 'modalRenameNode', 'modalSettings', 'modalAddNode', 'modalAddPreset', 'modalAddCron', 'modalAddUfwRule'].forEach(id => closeModal(id));
         }
       });
     });

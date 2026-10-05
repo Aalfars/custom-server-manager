@@ -41,6 +41,7 @@ else:
     WS_URL = "ws://" + HUB_URL[7:] + f"/ws/agent/{TOKEN}"
 
 active_terminal_sessions: Dict[str, dict] = {}
+active_log_tail_sessions: Dict[str, dict] = {}
 
 def get_system_telemetry() -> dict:
     now = time.time()
@@ -367,6 +368,247 @@ async def handle_rpc(data: dict) -> dict:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    elif action == "get_cron_jobs":
+        try:
+            res = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=5)
+            raw = res.stdout if res.returncode == 0 else ""
+            lines = raw.splitlines()
+            jobs = []
+            last_comment = ""
+            for idx, line in enumerate(lines):
+                t = line.strip()
+                if not t:
+                    last_comment = ""
+                    continue
+                if t.startswith("#") and not t.startswith("# DISABLED_BY_KOKORO: "):
+                    last_comment = t.lstrip("#").strip()
+                    continue
+                enabled = True
+                active_line = t
+                if t.startswith("# DISABLED_BY_KOKORO: "):
+                    enabled = False
+                    active_line = t[len("# DISABLED_BY_KOKORO: "):].strip()
+                parts = active_line.split(maxsplit=5)
+                if len(parts) >= 6:
+                    sched = " ".join(parts[:5])
+                    cmd = parts[5]
+                    jobs.append({
+                        "id": idx,
+                        "schedule": sched,
+                        "schedule_human": sched,
+                        "command": cmd,
+                        "comment": last_comment,
+                        "enabled": enabled,
+                        "raw": line
+                    })
+                    last_comment = ""
+            return {"jobs": jobs}
+        except Exception as e:
+            return {"error": str(e)}
+
+    elif action == "add_cron_job":
+        try:
+            sched = data.get("schedule", "").strip()
+            cmd = data.get("command", "").strip()
+            comment = data.get("comment", "").strip()
+            if not sched or not cmd:
+                return {"success": False, "error": "Jadwal dan Perintah harus diisi"}
+            res = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=5)
+            raw = res.stdout if res.returncode == 0 else ""
+            entry = f"# {comment}\n{sched} {cmd}\n" if comment else f"{sched} {cmd}\n"
+            new_content = raw.rstrip() + "\n" + entry
+            subprocess.run(["crontab", "-"], input=new_content, text=True, check=True, timeout=5)
+            return {"success": True, "message": "Cron job berhasil ditambahkan"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    elif action == "toggle_cron_job":
+        try:
+            job_id = int(data.get("job_id", -1))
+            enable = bool(data.get("enable", True))
+            res = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=5)
+            lines = res.stdout.splitlines() if res.returncode == 0 else []
+            if job_id < 0 or job_id >= len(lines):
+                return {"success": False, "error": "Job ID tidak valid"}
+            line = lines[job_id].strip()
+            prefix = "# DISABLED_BY_KOKORO: "
+            if enable and line.startswith(prefix):
+                lines[job_id] = line[len(prefix):].strip()
+            elif not enable and not line.startswith(prefix) and not line.startswith("#"):
+                lines[job_id] = prefix + line
+            subprocess.run(["crontab", "-"], input="\n".join(lines) + "\n", text=True, check=True, timeout=5)
+            return {"success": True, "message": f"Cron job {'diaktifkan' if enable else 'dinonaktifkan'}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    elif action == "delete_cron_job":
+        try:
+            job_id = int(data.get("job_id", -1))
+            res = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=5)
+            lines = res.stdout.splitlines() if res.returncode == 0 else []
+            if job_id < 0 or job_id >= len(lines):
+                return {"success": False, "error": "Job ID tidak valid"}
+            del lines[job_id]
+            if job_id > 0 and lines[job_id - 1].strip().startswith("#") and not lines[job_id - 1].strip().startswith("# DISABLED_BY_KOKORO: "):
+                del lines[job_id - 1]
+            subprocess.run(["crontab", "-"], input="\n".join(lines) + "\n", text=True, check=True, timeout=5)
+            return {"success": True, "message": "Cron job berhasil dihapus"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    elif action == "run_cron_now":
+        try:
+            cmd = data.get("command", "")
+            t0 = time.time()
+            res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=60)
+            return {
+                "success": res.returncode == 0,
+                "stdout": res.stdout,
+                "stderr": res.stderr,
+                "exit_code": res.returncode,
+                "elapsed": round(time.time() - t0, 2)
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e), "exit_code": -1}
+
+    elif action == "get_network_info":
+        try:
+            import re
+            # Ports
+            ports = []
+            res_ports = subprocess.run("ss -tulpn", shell=True, capture_output=True, text=True, timeout=5)
+            if res_ports.returncode == 0:
+                for line in res_ports.stdout.splitlines()[1:]:
+                    parts = line.split()
+                    if len(parts) >= 5:
+                        proto = parts[0].lower()
+                        state = parts[1].upper()
+                        local_raw = parts[4]
+                        if ":" in local_raw:
+                            ip, p_str = local_raw.rsplit(":", 1)
+                            ip = ip.strip("[]")
+                            if p_str.isdigit():
+                                port = int(p_str)
+                                is_pub = ip in ("0.0.0.0", "*", "::", "")
+                                proc_name = "-"
+                                pid = None
+                                if len(parts) >= 7:
+                                    m = re.search(r'"([^"]+)",pid=(\d+)', " ".join(parts[6:]))
+                                    if m:
+                                        proc_name = m.group(1)
+                                        pid = int(m.group(2))
+                                ports.append({
+                                    "proto": proto, "port": port, "ip": ip or "0.0.0.0",
+                                    "is_public": is_pub, "state": state, "process": proc_name, "pid": pid
+                                })
+            seen = set()
+            unique_ports = []
+            for p in ports:
+                k = (p["proto"], p["port"], p["ip"])
+                if k not in seen:
+                    seen.add(k)
+                    unique_ports.append(p)
+            unique_ports.sort(key=lambda x: (not x["is_public"], x["port"]))
+
+            # Connections
+            conns = []
+            res_c = subprocess.run("ss -tan state established", shell=True, capture_output=True, text=True, timeout=5)
+            if res_c.returncode == 0:
+                for line in res_c.stdout.splitlines()[1:]:
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        l_raw, r_raw = parts[2], parts[3]
+                        if ":" in r_raw and ":" in l_raw:
+                            r_ip, r_p = r_raw.rsplit(":", 1)
+                            l_ip, l_p = l_raw.rsplit(":", 1)
+                            if r_ip not in ("127.0.0.1", "::1"):
+                                conns.append({
+                                    "local_ip": l_ip.strip("[]"), "local_port": l_p,
+                                    "remote_ip": r_ip.strip("[]"), "remote_port": r_p,
+                                    "state": "ESTABLISHED"
+                                })
+
+            # UFW
+            ufw_data = {"installed": False, "active": False, "rules": []}
+            import shutil
+            if shutil.which("ufw"):
+                res_u = subprocess.run("ufw status numbered", shell=True, capture_output=True, text=True, timeout=5)
+                out = res_u.stdout or ""
+                ufw_data["installed"] = True
+                ufw_data["active"] = "Status: active" in out
+                for line in out.splitlines():
+                    m = re.match(r'\[\s*(\d+)\]\s+(.*?)\s+(ALLOW IN|DENY IN|ALLOW|DENY|REJECT)\s+(.*)', line)
+                    if m:
+                        ufw_data["rules"].append({
+                            "num": int(m.group(1)),
+                            "to": m.group(2).strip(),
+                            "action": m.group(3).strip(),
+                            "from": m.group(4).strip()
+                        })
+
+            return {"ports": unique_ports, "connections": conns[:40], "ufw": ufw_data}
+        except Exception as e:
+            return {"error": str(e)}
+
+    elif action == "ufw_action":
+        op = data.get("op", "").lower()
+        port = str(data.get("port", "")).strip()
+        from_ip = str(data.get("from_ip", "")).strip()
+        proto = str(data.get("proto", "")).strip()
+        rule_num = data.get("rule_num")
+        try:
+            if op == "enable": cmd = "ufw --force enable"
+            elif op == "disable": cmd = "ufw disable"
+            elif op == "allow":
+                target = f"{port}/{proto}" if proto and proto != "both" else port
+                cmd = f"ufw allow from {from_ip} to any port {port}" if from_ip and from_ip != "any" else f"ufw allow {target}"
+            elif op == "deny":
+                target = f"{port}/{proto}" if proto and proto != "both" else port
+                cmd = f"ufw deny from {from_ip} to any port {port}" if from_ip and from_ip != "any" else f"ufw deny {target}"
+            elif op == "delete":
+                cmd = f"ufw --force delete {rule_num}"
+            else:
+                return {"success": False, "error": f"Aksi UFW {op} tidak valid"}
+            res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+            return {"success": res.returncode == 0, "message": res.stdout.strip() or res.stderr.strip()}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    elif action == "get_log_targets":
+        try:
+            import glob
+            targets = []
+            common = [
+                {"name": "System Syslog", "path": "/var/log/syslog"},
+                {"name": "SSH & Auth Log", "path": "/var/log/auth.log"},
+                {"name": "Nginx Access Log", "path": "/var/log/nginx/access.log"},
+                {"name": "Nginx Error Log", "path": "/var/log/nginx/error.log"},
+                {"name": "System Messages", "path": "/var/log/messages"},
+                {"name": "Daemon Log", "path": "/var/log/daemon.log"},
+                {"name": "UFW Firewall Log", "path": "/var/log/ufw.log"}
+            ]
+            for item in common:
+                p = item["path"]
+                if os.path.exists(p) and os.path.isfile(p):
+                    targets.append({
+                        "name": item["name"],
+                        "path": p,
+                        "size_mb": round(os.path.getsize(p) / (1024 * 1024), 2),
+                        "exists": True
+                    })
+            if os.path.exists("/var/log"):
+                for f in glob.glob("/var/log/*.log"):
+                    if not any(t["path"] == f for t in targets):
+                        targets.append({
+                            "name": os.path.basename(f),
+                            "path": f,
+                            "size_mb": round(os.path.getsize(f) / (1024 * 1024), 2),
+                            "exists": True
+                        })
+            return {"targets": targets}
+        except Exception as e:
+            return {"error": str(e)}
+
     return {"error": "Unknown action"}
 
 async def run_agent():
@@ -458,6 +700,51 @@ async def run_agent():
                                     os.kill(sess["pid"], 9)
                                 except Exception:
                                     pass
+
+                        # Live Log Streaming Tailer
+                        elif action == "open_log_tail":
+                            tail_id = data.get("tail_id")
+                            path = data.get("path")
+                            lines = data.get("lines", 50)
+
+                            async def tail_runner():
+                                try:
+                                    proc = await asyncio.create_subprocess_shell(
+                                        f"tail -n {lines} -F '{path}'",
+                                        stdout=asyncio.subprocess.PIPE,
+                                        stderr=asyncio.subprocess.STDOUT
+                                    )
+                                    active_log_tail_sessions[tail_id] = proc
+                                    while True:
+                                        line = await proc.stdout.readline()
+                                        if not line:
+                                            break
+                                        await ws.send(json.dumps({
+                                            "type": "log_stream",
+                                            "tail_id": tail_id,
+                                            "data": line.decode("utf-8", errors="replace")
+                                        }))
+                                except asyncio.CancelledError:
+                                    if tail_id in active_log_tail_sessions:
+                                        p = active_log_tail_sessions.pop(tail_id, None)
+                                        if p:
+                                            try: p.terminate()
+                                            except Exception: pass
+                                except Exception:
+                                    pass
+
+                            t = asyncio.create_task(tail_runner())
+                            active_log_tail_sessions[tail_id + "_task"] = t
+
+                        elif action == "close_log_tail":
+                            tail_id = data.get("tail_id")
+                            t = active_log_tail_sessions.pop(tail_id + "_task", None)
+                            if t and not t.done():
+                                t.cancel()
+                            p = active_log_tail_sessions.pop(tail_id, None)
+                            if p:
+                                try: p.terminate()
+                                except Exception: pass
 
                         # Standard RPC handler
                         elif "req_id" in data:
