@@ -194,8 +194,14 @@ async def get_node_telemetry_history(node_id: str, request: Request, range: str 
     duration = duration_map.get(range, 3600)
     max_pts = 120 if range == "1h" else (180 if range == "6h" else 240)
     history = get_telemetry_history(node_id, duration_seconds=duration, max_points=max_pts)
+    for pt in history:
+        if "ram_percent" in pt and "mem_percent" not in pt:
+            pt["mem_percent"] = pt["ram_percent"]
+        elif "mem_percent" in pt and "ram_percent" not in pt:
+            pt["ram_percent"] = pt["mem_percent"]
     return {
         "node_id": node_id,
         "range": range,
         "points": history
     }
+

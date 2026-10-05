@@ -2206,14 +2206,25 @@
                 ticks: { color: textColor, font: { family: 'JetBrains Mono', size: 10 }, callback: v => `${v}%` }
               }
             },
+            interaction: {
+              mode: 'index',
+              intersect: false
+            },
             plugins: {
               legend: { display: false },
               tooltip: {
+                mode: 'index',
+                intersect: false,
                 backgroundColor: '#121214',
                 titleColor: '#f6f3f1',
                 bodyColor: '#a7fccd',
                 titleFont: { family: 'JetBrains Mono', size: 11 },
-                bodyFont: { family: 'JetBrains Mono', size: 11 }
+                bodyFont: { family: 'JetBrains Mono', size: 11 },
+                callbacks: {
+                  label: function(context) {
+                    return ` ${context.dataset.label}: ${context.parsed.y}%`;
+                  }
+                }
               }
             }
           }
@@ -2256,6 +2267,10 @@
             responsive: true,
             maintainAspectRatio: false,
             animation: false,
+            interaction: {
+              mode: 'index',
+              intersect: false
+            },
             scales: {
               x: {
                 grid: { color: gridColor },
@@ -2270,11 +2285,18 @@
             plugins: {
               legend: { display: false },
               tooltip: {
+                mode: 'index',
+                intersect: false,
                 backgroundColor: '#121214',
                 titleColor: '#f6f3f1',
                 bodyColor: '#38bdf8',
                 titleFont: { family: 'JetBrains Mono', size: 11 },
-                bodyFont: { family: 'JetBrains Mono', size: 11 }
+                bodyFont: { family: 'JetBrains Mono', size: 11 },
+                callbacks: {
+                  label: function(context) {
+                    return ` ${context.dataset.label}: ${context.parsed.y} KB/s`;
+                  }
+                }
               }
             }
           }
@@ -2318,10 +2340,13 @@
             ? `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
             : `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}`;
           labels.push(timeLabel);
-          cpuData.push(pt.cpu_percent);
-          memData.push(pt.mem_percent);
-          rxData.push(pt.rx_kbps);
-          txData.push(pt.tx_kbps);
+          cpuData.push(pt.cpu_percent !== undefined && pt.cpu_percent !== null ? pt.cpu_percent : 0);
+          const ramVal = pt.ram_percent !== undefined && pt.ram_percent !== null
+            ? pt.ram_percent
+            : (pt.mem_percent !== undefined && pt.mem_percent !== null ? pt.mem_percent : 0);
+          memData.push(ramVal);
+          rxData.push(pt.rx_kbps || 0);
+          txData.push(pt.tx_kbps || 0);
         });
 
         if (chartCpuMem) {
